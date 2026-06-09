@@ -56,7 +56,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
 
     # means3D = pc.get_xyz
     # add deformation to each points
-    # deformation = pc.get_deformation
+    # deformation = pc.get_deform_net
     means3D = pc.get_xyz
     time = torch.tensor(viewpoint_camera.time).to(means3D.device).repeat(means3D.shape[0],1)
     means2D = screenspace_points
@@ -74,17 +74,17 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     else:
         scales = pc._scaling
         rotations = pc._rotation
-    deformation_point = pc._deformation_table
+    deformation_point = pc._deform_flags
 
     if stage == "coarse" :
         means3D_deform, scales_deform, rotations_deform, opacity_deform = means3D, scales, rotations, opacity
     else:
-        means3D_deform, scales_deform, rotations_deform, opacity_deform = pc._deformation(means3D[deformation_point], scales[deformation_point],
+        means3D_deform, scales_deform, rotations_deform, opacity_deform = pc._deform_net(means3D[deformation_point], scales[deformation_point],
                                                                          rotations[deformation_point], opacity[deformation_point],
                                                                          time[deformation_point])
     # print(time.max())
     with torch.no_grad():
-        pc._deformation_accum[deformation_point] += torch.abs(means3D_deform - means3D[deformation_point])
+        pc._deform_accum[deformation_point] += torch.abs(means3D_deform - means3D[deformation_point])
 
     means3D_final = torch.zeros_like(means3D)
     rotations_final = torch.zeros_like(rotations)
@@ -109,13 +109,13 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     colors_precomp = None # when?
     if override_color is None:
         if pipe.convert_SHs_python:
-            shs_view = pc.get_features.transpose(1, 2).view(-1, 3, (pc.max_sh_degree+1)**2)
-            dir_pp = (pc.get_xyz - viewpoint_camera.camera_center.cuda().repeat(pc.get_features.shape[0], 1))
+            shs_view = pc.get_sh.transpose(1, 2).view(-1, 3, (pc.max_sh_degree+1)**2)
+            dir_pp = (pc.get_xyz - viewpoint_camera.camera_center.cuda().repeat(pc.get_sh.shape[0], 1))
             dir_pp_normalized = dir_pp/dir_pp.norm(dim=1, keepdim=True)
             sh2rgb = eval_sh(pc.active_sh_degree, shs_view, dir_pp_normalized)
             colors_precomp = torch.clamp_min(sh2rgb + 0.5, 0.0)
         else:
-            shs = pc.get_features
+            shs = pc.get_sh
     else:
         colors_precomp = override_color
 

@@ -1,0 +1,37 @@
+Working Directory: /home/groups/bdaniel/wyx/Projects/ToolGaussian
+Starting Training at: Tue Jun  9 13:32:10 PDT 2026
+Start GPU logging
+Looking for config file in output/endonerf/cutting/cfg_args
+Config file found: output/endonerf/cutting/cfg_args
+Rendering  output/endonerf/cutting [09/06 13:34:26]
+feature_dim: 256 [09/06 13:34:26]
+Loading trained model at iteration 3000 [09/06 13:34:26]
+meta data loaded, total image:156 [09/06 13:34:26]
+Found poses_bounds.py and extra marks with EndoNeRf [09/06 13:34:26]
+self.cameras_extent is  0.0 [09/06 13:35:02]
+Loading Training Views [09/06 13:35:02]
+Loading Test Views [09/06 13:35:02]
+Loading Video Views [09/06 13:35:02]
+Voxel Plane: set aabb= Parameter containing:
+tensor([[  45.9341,   34.5638,  201.9340],
+        [-107.4441,  -33.3645,   29.0000]], requires_grad=True) [09/06 13:35:02]
+loading model from exists output/endonerf/cutting/point_cloud/iteration_3000 [09/06 13:35:03]
+writing rendered images. [09/06 13:35:11]
+writing rendered depth images. [09/06 13:35:37]
+writing ground truth images. [09/06 13:35:38]
+writing ground truth depth images. [09/06 13:36:09]
+writing mask images. [09/06 13:36:10]
+writing rendered images. [09/06 13:36:31]
+writing rendered depth images. [09/06 13:36:35]
+writing ground truth images. [09/06 13:36:35]
+writing ground truth depth images. [09/06 13:36:40]
+writing mask images. [09/06 13:36:40]
+writing rendered images. [09/06 13:36:46]
+writing rendered depth images. [09/06 13:37:17]
+writing ground truth images. [09/06 13:37:19]
+writing ground truth depth images. [09/06 13:37:56]
+writing mask images. [09/06 13:37:57]
+
+Rendering complete [09/06 13:38:19]
+Stop GPU logging
+Rendering Finished at: Tue Jun  9 13:38:25 PDT 2026

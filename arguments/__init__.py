@@ -66,20 +66,20 @@ class ParamGroup:
 class ModelParams(ParamGroup): # model loading params
     def __init__(self):
         super().__init__("ModelParams")
-        self.sh_degree = 3
+        self.sh_degree = 3 #
         self._source_path = "" # original data
         self._model_path = "" # saved model
-        self._images = "images"
-        self._resolution = -1
-        self._white_background = False
-        self.data_device = "cuda"
-        self.eval = True
-        self.render_process = False
+        # self._images = "images"
+        # self._resolution = -1
+        self._white_background = False #
+        # self.data_device = "cuda"
+        # self.eval = True
+        self.render_process = False #
         self.extra_mark = None #
         self.camera_extent = None #
         self.mode = "binocular" #
-        self.no_fine = False
-        self.init_pts = 200_000
+        self.no_fine = False #
+        # self.init_pts = 200_000
 
     def extract(self, args):
         g = super().extract(args)
@@ -95,74 +95,67 @@ class PipelineParams(ParamGroup):
         self.debug = False
 
 
-class ModelHiddenParams(ParamGroup):
+class ModelHiddenParams(ParamGroup): # deformation
     def __init__(self):
         super().__init__("ModelHiddenParams")
-        self.net_width = 64
-        self.timebase_pe = 4
-        self.defor_depth = 1
-        self.posebase_pe = 10
-        self.scale_rotation_pe = 2
-        self.opacity_pe = 2
-        self.timenet_width = 64
-        self.timenet_output = 32
-        self.bounds = 1.6
-        self.plane_tv_weight = 0.0001
-        self.time_smoothness_weight = 0.01
-        self.l1_time_planes = 0.0001
+        self.net_width = 64 #
+        self.defor_depth = 1 #
+        self.bounds = 1.6 #
+        self.plane_tv_weight = 0.0001 #
+        self.time_smoothness_weight = 0.01 #
+        self.l1_time_planes = 0.0001 #
         self.kplanes_config = {
             "grid_dimensions": 2,
             "input_coordinate_dim": 4,
             "output_coordinate_dim": 32,
             "resolution": [64, 64, 64, 25],
-        }
-        self.multires = [1, 2, 4, 8]
-        self.no_dx = False
-        self.no_grid = False
-        self.no_dx = False
-        self.no_ds = False
-        self.no_dr = False
-        self.no_do = False
+        } #
+        self.multires = [1, 2, 4, 8] #
+        self.no_dx = False #
+        self.no_grid = False #
+        self.no_ds = False #
+        self.no_dr = False #
+        self.no_do = False #
 
 
 class OptimizationParams(ParamGroup):
     def __init__(self):
         super().__init__("OptimizationParams")
-        self.dataloader = False
-        self.iterations = 30_000
-        self.coarse_iterations = 3000
-        self.position_lr_init = 0.00016
-        self.position_lr_final = 0.0000016
-        self.position_lr_delay_mult = 0.01
-        self.position_lr_max_steps = 20_000
-        self.deformation_lr_init = 0.00016
-        self.deformation_lr_final = 0.000016
-        self.deformation_lr_delay_mult = 0.01
-        self.grid_lr_init = 0.0016
-        self.grid_lr_final = 0.00016
+        # self.dataloader = False
+        self.iterations = 30_000 #
+        self.coarse_iterations = 3000 #
+        self.position_lr_init = 0.00016 #
+        self.position_lr_final = 0.0000016 #
+        self.position_lr_delay_mult = 0.01 #
+        self.position_lr_max_steps = 20_000 #
+        self.deformation_lr_init = 0.00016 #
+        self.deformation_lr_final = 0.000016 #
+        self.deformation_lr_delay_mult = 0.01 #
+        self.grid_lr_init = 0.0016 #
+        self.grid_lr_final = 0.00016 #
 
-        self.feature_lr = 0.0025
-        self.opacity_lr = 0.05
-        self.scaling_lr = 0.005
-        self.rotation_lr = 0.001
-        self.percent_dense = 0.01
-        self.lambda_dssim = 0
-        self.lambda_lpips = 0
+        self.feature_lr = 0.0025 # sh
+        self.opacity_lr = 0.05 #
+        self.scaling_lr = 0.005 #
+        self.rotation_lr = 0.001 #
+        self.percent_dense = 0.01 #
+        self.lambda_dssim = 0 #
+        self.lambda_lpips = 0 #
         self.weight_constraint_init = 1
         self.weight_constraint_after = 0.2
         self.weight_decay_iteration = 5000
-        self.opacity_reset_interval = 3000
-        self.densification_interval = 100
-        self.densify_from_iter = 500
-        self.densify_until_iter = 15_000
-        self.densify_grad_threshold_coarse = 0.0002
-        self.densify_grad_threshold_fine_init = 0.0002
-        self.densify_grad_threshold_after = 0.0002
-        self.pruning_from_iter = 500
-        self.pruning_interval = 100
-        self.opacity_threshold_coarse = 0.005
-        self.opacity_threshold_fine_init = 0.005
-        self.opacity_threshold_fine_after = 0.005
+        self.opacity_reset_interval = 3000 #
+        self.densification_interval = 100 #
+        self.densify_from_iter = 500 #
+        self.densify_until_iter = 15_000 #
+        self.densify_grad_threshold_coarse = 0.0002 #
+        self.densify_grad_threshold_fine_init = 0.0002 #
+        self.densify_grad_threshold_after = 0.0002 #
+        self.pruning_from_iter = 500 #
+        self.pruning_interval = 100 #
+        self.opacity_threshold_coarse = 0.005 #
+        self.opacity_threshold_fine_init = 0.005 #
+        self.opacity_threshold_fine_after = 0.005 #
 
 ##
 def get_combined_args(parser: ArgumentParser):

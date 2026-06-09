@@ -23,6 +23,7 @@ class DeformationNet(nn.Module):
         self.set_feature_net()
         self.set_deform_net()
         self.apply(initialize_weights) # go through all layers and initialize weights
+        self.args = args
 
     def set_feature_net(self):
         if self.no_grid:
@@ -82,7 +83,7 @@ class DeformationNet(nn.Module):
     def get_mlp_parameters(self):
         parameter_list = []
         for name, param in self.named_parameters():
-            if  "grid" not in name:
+            if  "hexplane" not in name:
                 parameter_list.append(param)
         return parameter_list
 

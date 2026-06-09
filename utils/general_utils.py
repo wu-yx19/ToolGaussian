@@ -44,6 +44,10 @@ def set_seed(seed: int = 0):
     np.random.seed(seed)
     torch.manual_seed(seed)
 
+def set_seed_train(seed: int = 0):
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+
 def check_tensor(name, t):
     if not torch.isfinite(t).all():
         print(f"{name} has NaN or Inf!")
@@ -63,3 +67,26 @@ def mkdir_p(folder_path): # create folder and parents
             pass
         else:
             raise
+
+def training_report(
+    tb_writer,
+    iteration,
+    Ll1,
+    loss,
+    elapsed,
+    stage,
+):
+    tb_writer.add_scalar(
+        f"{stage}/train_loss_patches/l1_loss", Ll1.item(), iteration
+    )
+    tb_writer.add_scalar(
+        f"{stage}/train_loss_patches/total_loss", loss.item(), iteration
+    )
+    tb_writer.add_scalar(f"{stage}/iter_time", elapsed, iteration)
+
+
+def prepare_output_folder(modelParam, expname):
+    if not modelParam.model_path:
+        unique_str = expname
+        modelParam.model_path = os.path.join("./output/", unique_str)
+    os.makedirs(modelParam.model_path, exist_ok=True)

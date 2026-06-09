@@ -28,8 +28,8 @@ ModelHiddenParams = dict(
     multires = [1, 2, 4, 8],
     defor_depth = 0,
     net_width = 32,
-    plane_tv_weight = 0,
-    time_smoothness_weight = 0,
-    l1_time_planes =  0,
+    plane_tv_weight = 2e-2,
+    time_smoothness_weight = 2e-2,
+    l1_time_planes =  2e-2,
     weight_decay_iteration=0,
 )

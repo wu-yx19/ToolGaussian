@@ -13,8 +13,21 @@ import torch
 import traceback
 import socket
 import json
-from scene.cameras import MiniCam
 
+class MiniCam:
+    def __init__(self, width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform, time):
+        self.image_width = width
+        self.image_height = height    
+        self.FoVy = fovy
+        self.FoVx = fovx
+        self.znear = znear
+        self.zfar = zfar
+        self.world_view_transform = world_view_transform
+        self.full_proj_transform = full_proj_transform
+        view_inv = torch.inverse(self.world_view_transform)
+        self.camera_center = view_inv[3][:3]
+        self.time = time
+        
 host = "127.0.0.1"
 port = 6009
 

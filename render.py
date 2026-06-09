@@ -58,7 +58,7 @@ def render_set(
     gt_depths = []
     masks = []
 
-    for idx, view in enumerate(tqdm(views, desc="Rendering progress")): # view: Views
+    for idx, view in enumerate(tqdm(views, desc="Rendering Progress ({})".format(name))): # view: Views
 
         stage = "coarse" if no_fine else "fine"
         rendering = render(view, gaussians, pipelineParam, background, stage=stage)
@@ -75,7 +75,7 @@ def render_set(
     if render_test: # do a test on the rendering process, not to be confused with rendering the test set
         test_times = 50
         for i in range(test_times):
-            for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
+            for idx, view in enumerate(tqdm(views, desc="Rendering Test Progress ({})".format(name))):
                 if idx == 0 and i == 0:
                     time1 = time()
                 stage = "coarse" if no_fine else "fine"
@@ -165,7 +165,7 @@ def render_sets(
 if __name__ == "__main__":
 
     # Set up command line argument parser
-    parser = ArgumentParser(description="Testing script parameters")
+    parser = ArgumentParser(description="Rendering script parameters")
     modelParam = ModelParams()
     pipelineParam = PipelineParams()
     modelHiddenParam = ModelHiddenParams()
@@ -208,3 +208,5 @@ if __name__ == "__main__":
         args.reconstruct,
         args.render_test
     )
+
+    print("\nRendering complete")

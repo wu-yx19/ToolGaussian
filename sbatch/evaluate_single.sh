@@ -1,9 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=EndoGS_eval
+#SBATCH --job-name=TG_eval
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
-#SBATCH --constraint=GPU_MEM:8GB
 #SBATCH --mem=8G
 #SBATCH --time=0:10:00
 #SBATCH --output=logs/%j_eval.log
@@ -12,7 +11,7 @@
 mkdir -p logs
 
 IMAGE_PATH="/home/groups/bdaniel/wyx/docker/endo_env_new"
-PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/EndoGaussian"
+PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/ToolGaussian"
 
 GPU_LOG="$PROJECT_DIR/sbatch/logs/${SLURM_JOB_ID}_gpu.log"
 FILE_NAME="endonerf/pulling"
@@ -30,7 +29,7 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
 
     GPU_MONITOR_PID=\$!
 
-    python metrics.py --model_path output/$FILE_NAME \
+    python evaluate.py --model_path output/$FILE_NAME \
 
     echo "Stop GPU logging"
     kill \$GPU_MONITOR_PID
