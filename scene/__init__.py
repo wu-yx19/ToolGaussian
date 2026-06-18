@@ -27,6 +27,7 @@ class Scene:
         self.loaded_iter = None
         self.gaussians = gaussians
         self.mode = modelParam.mode # mono or binocular
+        # view_angle = (azim, elev)
 
         if load_iteration:
             if load_iteration == -1: # load maximum checkpoint
@@ -82,11 +83,12 @@ class Scene:
                                                     iteration_str,
                                                    )) # deformation
         else:
-            if modelParam.extra_mark == 'endonerf':
-                self.gaussians.create_from_pcd(scene_info.point_cloud, modelParam.camera_extent, self.maxtime)
-                print("Loaded endonerf point cloud. camera extent: {}".format(modelParam.camera_extent))
-            else:
+            if modelParam.extra_mark == 'scared':
                 self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent, self.maxtime)
+                print("Loaded point cloud. camera extent: {}".format(self.cameras_extent))
+            else:
+                self.gaussians.create_from_pcd(scene_info.point_cloud, modelParam.camera_extent, self.maxtime)
+                print("Loaded point cloud. camera extent: {}".format(modelParam.camera_extent))
 
     def save(self, iteration, stage):
         if stage == "coarse":

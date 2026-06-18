@@ -20,7 +20,7 @@ import subprocess
 import tempfile
 from PIL import Image
 import lpips
-from utils.image_utils import array2tensor
+from utils.image_utils import array2tensor, tensor2array
 
 
 # Learned Perceptual Image Patch Similarity
@@ -55,7 +55,7 @@ def cal_lpips(lpips_obj: LPIPS, a, b, device="cuda", batch=2):
 
     lpips_all = []
     for a_split, b_split in zip(a.split(split_size=batch, dim=0), b.split(split_size=batch, dim=0)): # avoid oom
-        out = lpips(a_split, b_split)
+        out = lpips_obj(a_split, b_split)
         lpips_all.append(out)
     lpips_all = torch.stack(lpips_all)
     lpips_mean = lpips_all.mean()
@@ -93,8 +93,8 @@ def flip(pred_frames: List[np.ndarray], gt_frames: List[np.ndarray], interval: i
 
     all_results = []
 
-    pred_frames = [e.squeeze(0).permute(1, 2, 0).cpu().numpy() for e in pred_frames]
-    gt_frames = [e.squeeze(0).permute(1, 2, 0).cpu().numpy() for e in gt_frames]
+    pred_frames = [np.transpose(e.squeeze(0), (1, 2, 0)) for e in pred_frames]
+    gt_frames = [np.transpose(e.squeeze(0), (1, 2, 0)) for e in gt_frames]
 
     with tempfile.TemporaryDirectory() as tmpdir:
         pred_fname = os.path.join(tmpdir, "pred.png")
@@ -107,3 +107,23 @@ def flip(pred_frames: List[np.ndarray], gt_frames: List[np.ndarray], interval: i
             ).decode()
             all_results.append(extract_from_result(result, r'Mean: (\d+\.\d+)'))
     return sum(all_results) / len(all_results)
+
+def rmse(a, b, mask=None):
+    """Compute rmse.
+    """
+    if torch.is_tensor(a):
+        a = tensor2array(a)
+    if torch.is_tensor(b):
+        b = tensor2array(b)
+    if torch.is_tensor(mask):
+        mask = tensor2array(mask)
+
+    if mask is None:
+        rmse = (((a - b)**2).sum() / (a.shape[-1]*a.shape[-2]))**0.5
+    else:
+        if len(mask.shape) == len(a.shape) - 1:
+            mask = mask[..., None]
+        mask_sum = np.sum(mask) + 1e-10
+        rmse = (((a - b)**2 * mask).sum() / (mask_sum))**0.5
+
+    return rmse

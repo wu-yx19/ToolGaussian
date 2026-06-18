@@ -158,11 +158,9 @@ class OptimizationParams(ParamGroup):
         self.opacity_threshold_fine_after = 0.005 #
 
 ##
-def get_combined_args(parser: ArgumentParser):
+def get_combined_args(args_cmdline):
     # overwrite parameters with file
-    cmdlne_string = sys.argv[1:] # get rid of script name
     cfgfile_string = "Namespace()"
-    args_cmdline = parser.parse_args(cmdlne_string)
 
     try:
         cfgfilepath = os.path.join(args_cmdline.model_path, "cfg_args")

@@ -16,6 +16,7 @@ import sys
 from os import makedirs
 from time import time
 from tqdm import tqdm
+import numpy as np
 
 import torch
 from scene.gaussian_renderer import GaussianModel, render
@@ -27,6 +28,19 @@ from utils.image_utils import write_images, write_video
 
 from argparse import ArgumentParser
 from arguments import GroupParams, ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
+
+from scipy.spatial.transform import Rotation as R
+
+def create_rotation_matrix(azim_deg, elev_deg):
+    rot = R.from_euler('yz', [elev_deg, azim_deg], degrees=True)
+    rotation_matrix = rot.as_matrix()
+    return rotation_matrix
+
+def process_view(view, rotation_matrix, scale):
+    view.R = rotation_matrix
+    view.T = rotation_matrix @ np.array([0, 0, scale])
+    view.T[2] = 0
+    view.update_transform()
 
 # render a set of views
 def render_set(
@@ -41,6 +55,14 @@ def render_set(
     render_test=False,
     reconstruct=False,
 ):
+    rotation_matrix = create_rotation_matrix(0, -10)
+    scale = gaussians.spatial_lr_scale
+
+    print(scale)
+
+    for view in tqdm(views, desc="Processing Views"):
+        process_view(view, rotation_matrix, 80)
+
     image_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
     depth_path = os.path.join(model_path, name, "ours_{}".format(iteration), "depth")
     gtimage_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")

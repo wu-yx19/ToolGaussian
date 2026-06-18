@@ -676,8 +676,8 @@ class Hamlyn_Dataset(object):
         depths = depths[:, :, :, crop_size:].contiguous()
 
         ## temporary fix
-        imgs_interp = imgs[:, :, :, crop_size:].contiguous()
-        masks_interp = masks[:, :, :, crop_size:].contiguous()
+        # imgs_interp = imgs[:, :, :, crop_size:].contiguous()
+        # masks_interp = masks[:, :, :, crop_size:].contiguous()
         # imgs_interp = imgs_interp[:, :, :, crop_size:].contiguous()
         # masks_interp = masks_interp[:, :, :, crop_size:].contiguous()
 
@@ -703,9 +703,9 @@ class Hamlyn_Dataset(object):
 
         # self assignment
         self.imgs = imgs
-        self.imgs_interp = imgs_interp
+        # self.imgs_interp = imgs_interp
         self.masks = masks
-        self.masks_interp = masks_interp
+        # self.masks_interp = masks_interp
         self.inf_depth = inf_depth
         self.close_depth = close_depth
         self.depths = depths

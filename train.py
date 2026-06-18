@@ -17,7 +17,7 @@ import lpips
 import torch
 from tqdm import tqdm
 
-from utils.general_utils import set_seed, set_seed_train, format_output, training_report, prepare_output_folder
+from utils.general_utils import set_seed, set_seed_train, format_output, training_report
 from utils.graphics_utils import render_training_image
 from utils.eval_utils import psnr
 from utils.loss_utils import TV_loss, l1_loss, lpips_loss, ssim
@@ -367,16 +367,9 @@ def training(
     checkpoint_iterations,
     load_checkpoint,
     debug_from,
-    expname,
     extra_mark,
     tb_writer,
 ):
-    prepare_output_folder(modelParam, args.expname)
-    print("Output folder: {}".format(modelParam.model_path))
-
-    # save parameters
-    with open(os.path.join(modelParam.model_path, "cfg_args"), "w") as cfg_log_f:
-        cfg_log_f.write(str(Namespace(**vars(args))))
 
     gaussians = GaussianModel(modelParam.sh_degree, modelHiddenParam)
     timer = Timer()
@@ -462,6 +455,14 @@ if __name__ == "__main__":
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)  # save after last iteration
 
+    if args.expname:
+        if not args.model_path:
+            args.model_path = os.path.join("./output/", args.expname)
+        if not args.configs:
+            args.configs = os.path.join("./arguments/", args.expname + ".py")
+        if not args.source_path:
+            args.source_path = os.path.join("./data/", args.expname)
+
     # configs > cmdline > default
     if args.configs:
         import mmcv
@@ -480,6 +481,11 @@ if __name__ == "__main__":
     else:
         print("Tensorboard not available: not logging progress")
 
+    print("Output folder: {}".format(args.model_path))
+    os.makedirs(args.model_path, exist_ok=True)
+    # save parameters
+    with open(os.path.join(args.model_path, "cfg_args"), "w") as cfg_log_f:
+        cfg_log_f.write(str(Namespace(**vars(args))))
 
     training(
         modelParam.extract(args),
@@ -490,7 +496,6 @@ if __name__ == "__main__":
         args.checkpoint_iterations,
         args.load_checkpoint,
         args.debug_from,
-        args.expname,
         args.extra_mark,
         tb_writer
     )

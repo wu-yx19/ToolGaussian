@@ -85,8 +85,3 @@ def training_report(
     tb_writer.add_scalar(f"{stage}/iter_time", elapsed, iteration)
 
 
-def prepare_output_folder(modelParam, expname):
-    if not modelParam.model_path:
-        unique_str = expname
-        modelParam.model_path = os.path.join("./output/", unique_str)
-    os.makedirs(modelParam.model_path, exist_ok=True)

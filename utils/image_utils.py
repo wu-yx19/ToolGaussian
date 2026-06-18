@@ -57,6 +57,12 @@ def write_video(images, path):
 def array2tensor(array, device="cuda", dtype=torch.float32):
     return torch.tensor(array, dtype=dtype, device=device)
 
+def tensor2array(tensor):
+    if torch.is_tensor(tensor):
+        return tensor.detach().cpu().numpy()
+    else:
+        return tensor
+
 def readImages(renders_dir, gt_dir, depth_dir, gtdepth_dir, masks_dir):
     renders = [] # rendered image dir
     gts = []
