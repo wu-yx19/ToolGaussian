@@ -13,3 +13,4 @@ scripts/
 *.sh
 .ply
 sbatch/logs/
+test/

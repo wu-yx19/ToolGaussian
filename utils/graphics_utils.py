@@ -67,7 +67,7 @@ def getWorld2View2(R, t, translate=np.array([.0, .0, .0]), scale=1.0):
 
     C2W = np.linalg.inv(Rt)
     cam_center = C2W[:3, 3]
-    cam_center = (cam_center + translate) * scale
+    cam_center = (cam_center + translate) * scale # move camera center around
     C2W[:3, 3] = cam_center
     Rt = np.linalg.inv(C2W)
     return np.float32(Rt)

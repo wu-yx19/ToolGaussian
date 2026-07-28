@@ -209,12 +209,12 @@ class EndoNeRF_Dataset(object):
 
     # helper functions
     def get_pts_wld(self, pts, pose):
-        R, T = pose
+        R, T = pose # cTw
         R = np.transpose(R)
         w2c = np.concatenate((R, T[...,None]), axis=-1)
         w2c = np.concatenate((w2c, np.array([[0, 0, 0, 1]])), axis=0)
-        c2w = np.linalg.inv(w2c)
-        pts_cam_homo = np.concatenate((pts, np.ones((pts.shape[0], 1))), axis=-1)
+        c2w = np.linalg.inv(w2c) # wTc
+        pts_cam_homo = np.concatenate((pts, np.ones((pts.shape[0], 1))), axis=-1) # (n,3) -> (n,4)
         pts_wld = np.transpose(c2w @ np.transpose(pts_cam_homo))
         pts_wld = pts_wld[:, :3]
         return pts_wld
@@ -451,7 +451,7 @@ class SCARED_Dataset(object):
             c2w = self.pose_mat[idx]
             w2c = np.linalg.inv(c2w)
             R, T = w2c[:3, :3], w2c[:3, -1]
-            R = np.transpose(R)
+            R = np.transpose(R) # cTw = w2c = (RT, t)
             camera_mat = self.camera_mat[idx]
             focal_x, focal_y = camera_mat[0, 0], camera_mat[1, 1]
             FovX = focal2fov(focal_x, self.img_wh[0])
@@ -762,7 +762,7 @@ class Hamlyn_Dataset(object):
             time = self.timestamps[idx]
             pose = self.poses[idx]
             R, T = pose[:3, :3], pose[:3, -1]
-            R = R.transpose()
+            # R = R.transpose() # should not transpose as w2c should be (RT, t)
             cameras.append(View(colmap_id=idx,R=R,T=T,FoVx=fov_x,FoVy=fov_y,
                                 image=image, depth=depth, mask=mask, gt_alpha_mask=None,
                                 image_name=f"{idx}",uid=idx,data_device=torch.device("cuda"),time=time,
