@@ -315,7 +315,9 @@ def scene_reconstruction(
                     and iteration % optimizationParam.densification_interval == 0
                 ):
                     size_threshold = (
-                        20 if iteration > optimizationParam.opacity_reset_interval else None
+                        optimizationParam.densify_size_threshold
+                        if iteration > optimizationParam.opacity_reset_interval
+                        else None
                     )
                     scene.gaussians.densify(
                         densify_threshold,
@@ -329,13 +331,16 @@ def scene_reconstruction(
                     and iteration % optimizationParam.pruning_interval == 0
                 ):
                     size_threshold = (
-                        40 if iteration > optimizationParam.opacity_reset_interval else None
+                        optimizationParam.prune_size_threshold
+                        if iteration > optimizationParam.opacity_reset_interval
+                        else None
                     )
                     scene.gaussians.prune(
                         densify_threshold,
                         opacity_threshold,
                         scene.cameras_extent,
                         size_threshold,
+                        optimizationParam.prune_scale_extent_ratio,
                     )
 
                 if iteration % optimizationParam.opacity_reset_interval == 0 or (

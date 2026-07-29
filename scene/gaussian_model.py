@@ -384,11 +384,11 @@ class GaussianModel:
         self.xyz_gradient_denom = self.xyz_gradient_denom[valid_points_mask]
         self.max_radii2D = self.max_radii2D[valid_points_mask]
 
-    def prune(self, max_grad, min_opacity, extent, max_screen_size):
+    def prune(self, max_grad, min_opacity, extent, max_screen_size, scale_extent_ratio=0.1):
         prune_mask = (self.get_opacity < min_opacity).squeeze()
         if max_screen_size:
             big_points_vs = self.max_radii2D > max_screen_size
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+            big_points_ws = self.get_scaling.max(dim=1).values > scale_extent_ratio * extent
             prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
         self.prune_points(prune_mask)
         torch.cuda.empty_cache()

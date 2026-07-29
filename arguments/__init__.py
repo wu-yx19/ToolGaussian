@@ -12,7 +12,6 @@
 #
 
 import os
-import sys
 from argparse import ArgumentParser, Namespace
 
 
@@ -153,6 +152,9 @@ class OptimizationParams(ParamGroup):
         self.densify_grad_threshold_after = 0.0002 #
         self.pruning_from_iter = 500 #
         self.pruning_interval = 100 #
+        self.densify_size_threshold = 20 # max_radii2D screen-size cutoff during densify
+        self.prune_size_threshold = 40 # max_radii2D screen-size cutoff during prune
+        self.prune_scale_extent_ratio = 0.1 # scale.max() > ratio * extent -> pruned as floater
         self.opacity_threshold_coarse = 0.005 #
         self.opacity_threshold_fine_init = 0.005 #
         self.opacity_threshold_fine_after = 0.005 #
