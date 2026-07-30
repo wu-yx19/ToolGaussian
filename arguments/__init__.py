@@ -155,6 +155,11 @@ class OptimizationParams(ParamGroup):
         self.densify_size_threshold = 20 # max_radii2D screen-size cutoff during densify
         self.prune_size_threshold = 40 # max_radii2D screen-size cutoff during prune
         self.prune_scale_extent_ratio = 0.1 # scale.max() > ratio * extent -> pruned as floater
+        self.sideview_smooth_weight = 0.03 # TV-loss weight on a rendered synthetic side view (train-sideview.py)
+        self.sideview_reg_interval = -1 # render+regularize a side view every N iterations; -1 disables it
+        self.anisotropy_weight = 0 # penalizes per-gaussian scale max/min ratio beyond anisotropy_ratio_threshold; 0 disables it (train-sideview.py)
+        self.anisotropy_ratio_threshold = 5.0 # max/min scale ratio allowed before penalty kicks in
+        self.anisotropy_size_power = 0.5 # penalty is weighted by scaling_max ** this; <1 grows sub-linearly with gaussian size
         self.opacity_threshold_coarse = 0.005 #
         self.opacity_threshold_fine_init = 0.005 #
         self.opacity_threshold_fine_after = 0.005 #

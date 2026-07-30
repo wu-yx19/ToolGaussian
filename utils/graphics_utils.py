@@ -18,6 +18,8 @@ import open3d as o3d
 import torch
 from typing import NamedTuple
 from plyfile import PlyData, PlyElement
+from scipy.spatial.transform import Rotation as R
+from copy import deepcopy
 
 from PIL import Image, ImageDraw, ImageFont
 from matplotlib import pyplot as plt
@@ -28,6 +30,35 @@ class BasicPointCloud(NamedTuple):
     points : np.array
     colors : np.array
     normals : np.array
+
+def create_rotation_matrix(azim_deg, elev_deg):
+
+    azim_rad = np.radians(azim_deg)
+    axis = np.array([- np.sin(azim_rad), np.cos(azim_rad), 0], dtype=float)
+    axis /= np.linalg.norm(axis)
+    rotation_matrix = R.from_rotvec(axis * np.radians(elev_deg)).as_matrix()
+    return rotation_matrix
+
+def process_view(view, azim, elev, dist):
+
+    view_new = deepcopy(view)
+    rotation_matrix = create_rotation_matrix(azim, elev)
+
+    W2C0 = np.zeros((4, 4))
+    W2C0[:3,:3] = view.R.transpose()
+    W2C0[:3,3] = view.T
+    W2C0[3,3] = 1
+
+    C12C0 = np.zeros((4, 4))
+    C12C0[:3,:3] = rotation_matrix
+    C12C0[:3,3] = (np.eye(3)-rotation_matrix) @ np.array([0, 0, dist]) # C1 in C0
+    C12C0[3,3] = 1
+
+    W2C1 = np.linalg.inv(C12C0) @ W2C0
+    view_new.R = W2C1[:3,:3].T
+    view_new.T = W2C1[:3,3]
+    view_new.update_transform()
+    return view_new
 
 def fov2focal(fov, pixels):
     return pixels / (2 * math.tan(fov / 2))

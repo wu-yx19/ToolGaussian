@@ -16,7 +16,6 @@ import sys
 from os import makedirs
 import numpy as np
 import cv2
-from copy import deepcopy
 
 import torch
 from scene.gaussian_renderer import GaussianModel, render
@@ -24,13 +23,13 @@ from scene import Scene
 
 from utils.general_utils import format_output, set_seed
 from utils.image_utils import to8b
+from utils.graphics_utils import process_view
 
 from argparse import ArgumentParser
 from arguments import GroupParams, ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
 
-from scipy.spatial.transform import Rotation as R
 
-elev = 30
+elev = 15
 # azim/elev offsets applied on top of the frame's original camera pose
 VIEW_OFFSETS = {
     "central": {"azim": 0, "elev": 0},
@@ -40,45 +39,14 @@ VIEW_OFFSETS = {
     "down": {"azim": 270, "elev": elev},
 }
 
-def create_rotation_matrix(azim_deg, elev_deg):
-
-    azim_rad = np.radians(azim_deg)
-    axis = np.array([- np.sin(azim_rad), np.cos(azim_rad), 0], dtype=float)
-    axis /= np.linalg.norm(axis)
-    rotation_matrix = R.from_rotvec(axis * np.radians(elev_deg)).as_matrix()
-
-    # rot = R.from_euler('zx', [azim_deg, elev_deg], degrees=True)
-    # rotation_matrix = rot.as_matrix()
-    return rotation_matrix
-
-def process_view(view, azim, elev, dist):
-
-    view_new = deepcopy(view)
-
-    rotation_matrix = create_rotation_matrix(azim, elev)
-
-    W2C0 = np.zeros((4, 4))
-    W2C0[:3,:3] = view.R.transpose()
-    W2C0[:3,3] = view.T
-    W2C0[3,3] = 1
-
-    C12C0 = np.zeros((4, 4))
-    C12C0[:3,:3] = rotation_matrix
-    C12C0[:3,3] = (np.eye(3)-rotation_matrix) @ np.array([0, 0, dist]) # C1 in C0
-    C12C0[3,3] = 1
-
-    W2C1 = np.linalg.inv(C12C0) @ W2C0
-    view_new.R = W2C1[:3,:3].T
-    view_new.T = W2C1[:3,3]
-    view_new.update_transform()
-    return view_new
-
 def save_with_title(image, title, path):
     cv2.putText(image, title, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
     cv2.imwrite(path, image)
 
 # render one or more views of a single frame, each relative to that frame's original camera pose
 def render_frame_views(
+    model_path : str,
+    iteration : int,
     views, # list of views
     gaussians,
     pipelineParam,
@@ -94,10 +62,7 @@ def render_frame_views(
     valid_depth = depth[depth > 0]
     distance = float(np.median(valid_depth))
 
-    image_path = os.path.join("test", "renders")
-    depth_path = os.path.join("test", "depth")
-    makedirs(image_path, exist_ok=True)
-    makedirs(depth_path, exist_ok=True)
+    out_path = os.path.join(model_path, "sideview", "ours_{}".format(iteration))
 
     stage = "coarse" if no_fine else "fine"
 
@@ -105,6 +70,12 @@ def render_frame_views(
         offset = VIEW_OFFSETS[view_name]
         azim_deg = offset["azim"]
         elev_deg = offset["elev"]
+
+        elev_dir = f"elev{elev_deg:.0f}"
+        image_path = os.path.join(out_path, elev_dir, "renders")
+        depth_path = os.path.join(out_path, elev_dir, "depth")
+        makedirs(image_path, exist_ok=True)
+        makedirs(depth_path, exist_ok=True)
 
         view_new = process_view(view, azim_deg, elev_deg, distance)
 
@@ -177,6 +148,8 @@ if __name__ == "__main__":
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
         render_frame_views(
+            modelParam.model_path,
+            scene.loaded_iter,
             scene.getVideoViews(),
             scene.gaussians,
             pipelineParam,
