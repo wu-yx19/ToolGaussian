@@ -281,12 +281,14 @@ def scene_reconstruction(
             ema_loss_for_log = (1 - ema_smoothness) * loss.item() + ema_smoothness * ema_loss_for_log # Exponential Moving Average
             ema_psnr_for_log = (1 - ema_smoothness) * psnr_ + ema_smoothness * ema_psnr_for_log
             total_point = scene.gaussians._xyz.shape[0]
+            n_deform = int(scene.gaussians._deform_flags.sum().item())
             if iteration % 10 == 0:
                 progress_bar.set_postfix(
                     {
                         "Loss": f"{ema_loss_for_log:.{7}f}",
                         "psnr": f"{float(ema_psnr_for_log):.{2}f}",
                         "point": f"{total_point}",
+                        "deform": f"{n_deform}",
                     }
                 )
                 progress_bar.update(10) # advance 10 steps and print
@@ -296,6 +298,7 @@ def scene_reconstruction(
             # Log and save
             timer.pause()
             if tb_writer:
+                tb_writer.add_scalar(f'{stage}/n_deform_points', n_deform, iteration)
                 training_report(
                     tb_writer,
                     iteration,

@@ -20,6 +20,7 @@ echo "Working Directory: $PROJECT_DIR"
 echo "Starting Pipeline at: $(date)"
 
 apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
+    set -e
     cd $PROJECT_DIR
 
     echo "Start GPU logging"
@@ -28,6 +29,7 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
     --format=csv -l 1 > $GPU_LOG &
 
     GPU_MONITOR_PID=\$!
+    trap 'kill \$GPU_MONITOR_PID 2>/dev/null' EXIT
 
     echo "Training started: \$(date)"
     python train.py --expname $EXPNAME --no-log_file
@@ -37,9 +39,6 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
 
     echo "Evaluation started: \$(date)"
     python evaluate.py --expname $EXPNAME
-
-    echo "Stop GPU logging"
-    kill \$GPU_MONITOR_PID
 EOF
 
 echo "Pipeline Finished at: $(date)"
