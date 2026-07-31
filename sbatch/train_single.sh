@@ -14,7 +14,7 @@ mkdir -p logs
 IMAGE_PATH="/home/groups/bdaniel/wyx/docker/endo_env_new"
 PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/EndoGaussian"
 
-GPU_LOG="$PROJECT_DIR/sbatch/logs/${SLURM_JOB_ID}_gpu.log"
+GPU_LOG="$PROJECT_DIR/logs/${SLURM_JOB_ID}_gpu.log"
 FILE_NAME="hamlyn/hamlyn_seq1" # endonerf/cutting
 
 echo "Working Directory: $PROJECT_DIR"

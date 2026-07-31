@@ -10,7 +10,6 @@ data/
 data
 argument/
 scripts/
-*.sh
 .ply
-sbatch/logs/
+logs/
 test/
