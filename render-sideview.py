@@ -22,11 +22,12 @@ from scene.gaussian_renderer import GaussianModel, render
 from scene import Scene
 
 from utils.general_utils import format_output, set_seed
-from utils.image_utils import to8b
+from utils.image_utils import to8b, save_with_title, concat_with_title
 from utils.graphics_utils import process_view
 
+import argparse
 from argparse import ArgumentParser
-from arguments import GroupParams, ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
+from arguments import ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
 
 
 elev = 15
@@ -39,10 +40,6 @@ VIEW_OFFSETS = {
     "down": {"azim": 270, "elev": elev},
 }
 
-def save_with_title(image, title, path):
-    cv2.putText(image, title, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.imwrite(path, image)
-
 # render one or more views of a single frame, each relative to that frame's original camera pose
 def render_frame_views(
     model_path : str,
@@ -54,6 +51,7 @@ def render_frame_views(
     no_fine, # coarse
     frame_idx,
     view_names,
+    concat,
 ):
     view = views[frame_idx]
 
@@ -66,6 +64,7 @@ def render_frame_views(
 
     stage = "coarse" if no_fine else "fine"
 
+    render_images = []
     for view_name in view_names:
         offset = VIEW_OFFSETS[view_name]
         azim_deg = offset["azim"]
@@ -87,9 +86,15 @@ def render_frame_views(
         render_image = np.ascontiguousarray(to8b(rendering["render"].cpu()).transpose(1, 2, 0))  # CHW -> HWC
         render_image = cv2.cvtColor(render_image, cv2.COLOR_RGB2BGR)
         save_with_title(render_image, title, os.path.join(image_path, f"render_{suffix}.png"))
+        render_images.append(render_image)
 
         render_depth = np.clip(rendering["depth"].cpu().squeeze().numpy(), 0, 255).astype(np.uint8)
         save_with_title(render_depth, title, os.path.join(depth_path, f"depth_{suffix}.png"))
+
+    if concat:
+        model_name = os.sep.join(os.path.normpath(model_path).split(os.sep)[-2:])
+        concat_path = os.path.join(out_path, f"frame{frame_idx}_concat.png")
+        concat_with_title(render_images, model_name, concat_path)
 
 
 if __name__ == "__main__":
@@ -111,6 +116,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--frame_idx", default=0, type=int) # index of the single frame to render
     parser.add_argument("--views", nargs="+", default=["central", "left", "right", "up", "down"], choices=list(VIEW_OFFSETS.keys())) # one or more views, relative to the frame's original pose
+    parser.add_argument("--concat", action=argparse.BooleanOptionalAction, default=True) # concat rendered views into one titled figure (--no-concat to disable)
 
     # configs > cmdline > model cfg_args > default
     args = parser.parse_args(sys.argv[1:])
@@ -150,13 +156,14 @@ if __name__ == "__main__":
         render_frame_views(
             modelParam.model_path,
             scene.loaded_iter,
-            scene.getVideoViews(),
+            scene.getVideoViews()[args.frame_idx],
             scene.gaussians,
             pipelineParam,
             background,
             modelParam.no_fine,
             args.frame_idx,
             args.views,
+            args.concat,
         )
 
     print("\nRendering complete")

@@ -129,8 +129,15 @@ if __name__ == "__main__":
 
     # Set up command line argument parser
     parser = ArgumentParser(description="Evaluation parameters")
-    parser.add_argument('--model_paths', '-m', required=True, nargs="+", type=str, default=[])
+    parser.add_argument('--model_paths', '-m', nargs="+", type=str, default=[])
+    parser.add_argument('--expname', nargs="+", type=str, default=[])
     args = parser.parse_args()
+
+    if not args.model_paths:
+        if not args.expname:
+            parser.error("either --model_paths/-m or --expname must be given")
+        args.model_paths = [os.path.join("./output/", expname) for expname in args.expname]
+
     evaluate(args.model_paths)
 
     print("\nEvaluation complete")

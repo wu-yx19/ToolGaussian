@@ -10,7 +10,7 @@
 #
 
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, Namespace, BooleanOptionalAction
 from random import randint
 import os
 import lpips
@@ -453,6 +453,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--log_file", action=BooleanOptionalAction, default=True,
+        help="mirror terminal output to log.txt in the output folder",
+    )
     parser.add_argument("--load_checkpoint", type=str, default=None) # ?
     parser.add_argument("--expname", type=str, default="")
     parser.add_argument("--configs", type=str, default="")
@@ -478,7 +482,8 @@ if __name__ == "__main__":
     network_gui.init(args.ip, args.port) # ???
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
-    format_output(args.quiet)
+    log_path = os.path.join(args.model_path, "log.txt") if args.log_file else None
+    format_output(args.quiet, log_path=log_path)
 
     tb_writer = None
     if TENSORBOARD_FOUND:

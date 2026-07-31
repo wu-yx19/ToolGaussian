@@ -21,23 +21,38 @@ import random
 from errno import EEXIST
 from os import makedirs, path
 
-def format_output(silent):
-    old_f = sys.stdout
+def format_output(silent, log_path=None):
+    # log_path: if given, mirror everything written to stdout/stderr into this
+    # file too (in addition to the terminal), regardless of `silent`
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    log_file = None
+    if log_path:
+        log_dir = os.path.dirname(log_path)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        log_file = open(log_path, "a")
+
     class F:
-        def __init__(self, silent):
+        def __init__(self, silent, terminal, log_file):
             self.silent = silent
+            self.terminal = terminal
+            self.log_file = log_file
 
         def write(self, x):
+            stamped = x.replace("\n", " [{}]\n".format(str(datetime.now().strftime("%d/%m %H:%M:%S")))) if x.endswith("\n") else x
             if not self.silent:
-                if x.endswith("\n"):
-                    old_f.write(x.replace("\n", " [{}]\n".format(str(datetime.now().strftime("%d/%m %H:%M:%S")))))
-                else:
-                    old_f.write(x)
+                self.terminal.write(stamped)
+            if self.log_file:
+                self.log_file.write(stamped)
 
         def flush(self):
-            old_f.flush()
+            self.terminal.flush()
+            if self.log_file:
+                self.log_file.flush()
 
-    sys.stdout = F(silent)
+    sys.stdout = F(silent, old_stdout, log_file)
+    sys.stderr = F(False, old_stderr, log_file)
 
 def set_seed(seed: int = 0):
     random.seed(seed)

@@ -157,6 +157,8 @@ class OptimizationParams(ParamGroup):
         self.prune_scale_extent_ratio = 0.1 # scale.max() > ratio * extent -> pruned as floater
         self.sideview_smooth_weight = 0.03 # TV-loss weight on a rendered synthetic side view (train-sideview.py)
         self.sideview_reg_interval = -1 # render+regularize a side view every N iterations; -1 disables it
+        self.sideview_elev = 20 # elevation offset (degrees) used to synthesize the side view (train-sideview.py)
+        self.sideview_azims = [0, 90, 180, 270] # azimuth offsets (degrees) sampled from for the side view; -1 = sample uniformly from [0, 360) instead
         self.anisotropy_weight = 0 # penalizes per-gaussian scale max/min ratio beyond anisotropy_ratio_threshold; 0 disables it (train-sideview.py)
         self.anisotropy_ratio_threshold = 5.0 # max/min scale ratio allowed before penalty kicks in
         self.anisotropy_size_power = 0.5 # penalty is weighted by scaling_max ** this; <1 grows sub-linearly with gaussian size

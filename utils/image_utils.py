@@ -25,6 +25,21 @@ import torchvision.transforms.functional as tf
 def to8b(x):
     return (255 * np.clip(x.cpu().numpy(), 0, 1)).astype(np.uint8)  # tensor to uint8
 
+def save_with_title(image, title, path):
+    cv2.putText(image, title, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.imwrite(path, image)
+
+def concat_with_title(images, title, path):
+    # images: list of HxWx3 uint8 BGR arrays, same size -> one row, with a title bar on top
+    row = np.concatenate(images, axis=1)
+    bar_h = 40
+    title_bar = np.zeros((bar_h, row.shape[1], 3), dtype=np.uint8)
+    (text_w, text_h), _ = cv2.getTextSize(title, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+    text_x = max((row.shape[1] - text_w) // 2, 10)
+    cv2.putText(title_bar, title, (text_x, (bar_h + text_h) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+    figure = np.concatenate([title_bar, row], axis=0)
+    cv2.imwrite(path, figure)
+
 def write_images(name : str, images, path):
     count = 0
     print("writing {} images.".format(name))

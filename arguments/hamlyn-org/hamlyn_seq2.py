@@ -1,25 +1,20 @@
 ModelParams = dict(
-    extra_mark = 'endonerf',
+    extra_mark = 'hamlyn',
     camera_extent = 10
 )
 
 OptimizationParams = dict(
-    coarse_iterations = 1000,
+    coarse_iterations = 2000,
     deformation_lr_init = 0.00016,
     deformation_lr_final = 0.0000016,
     deformation_lr_delay_mult = 0.01,
     grid_lr_init = 0.0016,
-    grid_lr_final = 0.000016,
+    grid_lr_final = 0.00016,
     iterations = 3000,
     percent_dense = 0.01,
     opacity_reset_interval = 4000,
     position_lr_max_steps = 4000,
-    pruning_interval = 100,
-    sideview_smooth_weight = 0.03,
-    sideview_reg_interval = 25,
-    anisotropy_weight = 0,
-    anisotropy_ratio_threshold = 5.0,
-    anisotropy_size_power = 0.5
+    pruning_interval = 100
 )
 
 ModelHiddenParams = dict(

@@ -20,7 +20,7 @@
 import sys
 import importlib.util
 from pathlib import Path
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, Namespace, BooleanOptionalAction
 from random import randint, choice
 import os
 import lpips
@@ -45,16 +45,8 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
-elev = 15
-VIEW_OFFSETS = {
-    "left": {"azim": 0, "elev": elev},
-    "right": {"azim": 180, "elev": elev},
-    "up": {"azim": 90, "elev": elev},
-    "down": {"azim": 270, "elev": elev},
-}
-
-def render_side_view(viewpoint_cam, gaussians, pipelineParam, background, stage):
-    # pick one of the non-central VIEW_OFFSETS (left/right/up/down) and render it
+def render_side_view(viewpoint_cam, gaussians, pipelineParam, background, stage, elev, azims):
+    # pick a random azimuth (from azims, or uniformly from [0, 360) if azims == -1) and render it
     depth = viewpoint_cam.original_depth
     depth = depth.cpu().numpy() if torch.is_tensor(depth) else np.asarray(depth)
     valid_depth = depth[depth > 0]
@@ -62,8 +54,8 @@ def render_side_view(viewpoint_cam, gaussians, pipelineParam, background, stage)
         return None
 
     distance = float(np.median(valid_depth))
-    offset = choice(list(VIEW_OFFSETS.values()))
-    side_cam = process_view(viewpoint_cam, offset["azim"], offset["elev"], distance)
+    azim = np.random.uniform(0, 360) if azims == -1 else choice(azims)
+    side_cam = process_view(viewpoint_cam, azim, elev, distance)
     return render(side_cam, gaussians, pipelineParam, background, stage=stage)["render"].unsqueeze(0)
 
 
@@ -258,7 +250,10 @@ def scene_reconstruction(
             and optimizationParam.sideview_reg_interval > 0
             and iteration % optimizationParam.sideview_reg_interval == 0
         ):
-            side_render = render_side_view(viewpoint_cams[0], scene.gaussians, pipelineParam, background, stage)
+            side_render = render_side_view(
+                viewpoint_cams[0], scene.gaussians, pipelineParam, background, stage,
+                optimizationParam.sideview_elev, optimizationParam.sideview_azims
+            )
             if side_render is not None:
                 loss += optimizationParam.sideview_smooth_weight * TV_loss(side_render)
 
@@ -501,6 +496,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--log_file", action=BooleanOptionalAction, default=True,
+        help="mirror terminal output to log.txt in the output folder",
+    )
     parser.add_argument("--load_checkpoint", type=str, default=None) # ?
     parser.add_argument("--expname", type=str, default="")
     parser.add_argument("--configs", type=str, default="")
@@ -526,7 +525,8 @@ if __name__ == "__main__":
     network_gui.init(args.ip, args.port) # ???
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
-    format_output(args.quiet)
+    log_path = os.path.join(args.model_path, "log.txt") if args.log_file else None
+    format_output(args.quiet, log_path=log_path)
 
     tb_writer = None
     if TENSORBOARD_FOUND:

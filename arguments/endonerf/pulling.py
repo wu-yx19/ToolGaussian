@@ -14,7 +14,14 @@ OptimizationParams = dict(
     percent_dense = 0.01,
     opacity_reset_interval = 4000,
     position_lr_max_steps = 4000,
-    pruning_interval = 100
+    pruning_interval = 100,
+    sideview_smooth_weight = 0.1,
+    sideview_reg_interval = 10,
+    sideview_elev = 20,
+    sideview_azims = [0, 90, 180, 270],
+    anisotropy_weight = 0.01,
+    anisotropy_ratio_threshold = 10.0,
+    anisotropy_size_power = 0.5
 )
 
 ModelHiddenParams = dict(
