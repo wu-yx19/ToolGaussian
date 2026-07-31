@@ -8,19 +8,29 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
+# Updated by Y. W. 2026
+#
+# Same training loop as train.py, plus a side-view smoothness regularizer:
+# each iteration (every sideview_reg_interval iters) we synthesize a side
+# view of the current training camera (reusing render-sideview.py's pose
+# synthesis) and penalize its TV-loss, to discourage the streaky/needle
+# Gaussians that only show up when viewed off-axis from training cameras.
+#
 
 import sys
+from pathlib import Path
 from argparse import ArgumentParser, Namespace, BooleanOptionalAction
-from random import randint
+from random import randint, choice
 import os
 import lpips
+import numpy as np
 import torch
 from tqdm import tqdm
 
 from utils.general_utils import set_seed, set_seed_train, format_output, training_report
-from utils.graphics_utils import render_training_image
+from utils.graphics_utils import render_training_image, process_view
 from utils.eval_utils import psnr
-from utils.loss_utils import TV_loss, l1_loss, lpips_loss, ssim
+from utils.loss_utils import TV_loss, anisotropy_loss, l1_loss, lpips_loss, ssim
 from utils.time_utils import Timer
 
 from scene import GaussianModel, Scene
@@ -33,6 +43,19 @@ try:
     TENSORBOARD_FOUND = True
 except ImportError:
     TENSORBOARD_FOUND = False
+
+def render_side_view(viewpoint_cam, gaussians, pipelineParam, background, stage, elev, azims):
+    # pick a random azimuth (from azims, or uniformly from [0, 360) if azims == -1) and render it
+    depth = viewpoint_cam.original_depth
+    depth = depth.cpu().numpy() if torch.is_tensor(depth) else np.asarray(depth)
+    valid_depth = depth[depth > 0]
+    if valid_depth.size == 0:
+        return None
+
+    distance = float(np.median(valid_depth))
+    azim = np.random.uniform(0, 360) if azims == -1 else choice(azims)
+    side_cam = process_view(viewpoint_cam, azim, elev, distance)
+    return render(side_cam, gaussians, pipelineParam, background, stage=stage)["render"].unsqueeze(0)
 
 
 def scene_reconstruction(
@@ -221,6 +244,25 @@ def scene_reconstruction(
             lpipsloss = lpips_loss(rendered_images, gt_images, lpips_model)
             loss += optimizationParam.lambda_lpips * lpipsloss
 
+        if (
+            optimizationParam.sideview_smooth_weight != 0
+            and optimizationParam.sideview_reg_interval > 0
+            and iteration % optimizationParam.sideview_reg_interval == 0
+        ):
+            side_render = render_side_view(
+                viewpoint_cams[0], scene.gaussians, pipelineParam, background, stage,
+                optimizationParam.sideview_elev, optimizationParam.sideview_azims
+            )
+            if side_render is not None:
+                loss += optimizationParam.sideview_smooth_weight * TV_loss(side_render)
+
+        if optimizationParam.anisotropy_weight != 0:
+            loss += optimizationParam.anisotropy_weight * anisotropy_loss(
+                scene.gaussians.get_scaling,
+                optimizationParam.anisotropy_ratio_threshold,
+                optimizationParam.anisotropy_size_power,
+            )
+
         loss.backward()
 
         viewspace_point_tensor_grad = torch.zeros_like(viewspace_point_tensor)
@@ -243,7 +285,7 @@ def scene_reconstruction(
                 progress_bar.set_postfix(
                     {
                         "Loss": f"{ema_loss_for_log:.{7}f}",
-                        "psnr": f"{psnr_:.{2}f}",
+                        "psnr": f"{float(ema_psnr_for_log):.{2}f}",
                         "point": f"{total_point}",
                     }
                 )
@@ -417,7 +459,7 @@ if __name__ == "__main__":
     set_seed_train(6666)
 
     # Set up command line argument parser
-    parser = ArgumentParser(description="Training script parameters")
+    parser = ArgumentParser(description="Training script parameters (with side-view smoothness regularization)")
     modelParam = ModelParams()
     optimizationParam = OptimizationParams()
     pipelineParam = PipelineParams()

@@ -16,6 +16,7 @@ import sys
 from os import makedirs
 import numpy as np
 import cv2
+from tqdm import tqdm
 
 import torch
 from scene.gaussian_renderer import GaussianModel, render
@@ -29,35 +30,34 @@ import argparse
 from argparse import ArgumentParser
 from arguments import ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
 
+ELEV = 15
 
-elev = 15
-# azim/elev offsets applied on top of the frame's original camera pose
-VIEW_OFFSETS = {
-    "central": {"azim": 0, "elev": 0},
-    "left": {"azim": 0, "elev": elev},
-    "right": {"azim": 180, "elev": elev},
-    "up": {"azim": 90, "elev": elev},
-    "down": {"azim": 270, "elev": elev},
-}
-
+def get_view_offsets(elev):
+    return {
+        "central": {"azim": 0, "elev": 0},
+        "left": {"azim": 0, "elev": elev},
+        "right": {"azim": 180, "elev": elev},
+        "up": {"azim": 90, "elev": elev},
+        "down": {"azim": 270, "elev": elev},
+    }
 # render one or more views of a single frame, each relative to that frame's original camera pose
 def render_frame_views(
     model_path : str,
     iteration : int,
-    views, # list of views
+    view,
     gaussians,
     pipelineParam,
     background, # tensor
     no_fine, # coarse
     frame_idx,
-    view_names,
+    view_offsets,
     concat,
 ):
-    view = views[frame_idx]
-
     depth = view.original_depth
     depth = depth.cpu().numpy() if torch.is_tensor(depth) else np.asarray(depth)
     valid_depth = depth[depth > 0]
+    if valid_depth.size == 0:
+        raise ValueError(f"frame {frame_idx} has no valid (positive) depth values")
     distance = float(np.median(valid_depth))
 
     out_path = os.path.join(model_path, "sideview", "ours_{}".format(iteration))
@@ -65,8 +65,8 @@ def render_frame_views(
     stage = "coarse" if no_fine else "fine"
 
     render_images = []
-    for view_name in view_names:
-        offset = VIEW_OFFSETS[view_name]
+    for view_name, offset in view_offsets.items():
+
         azim_deg = offset["azim"]
         elev_deg = offset["elev"]
 
@@ -99,6 +99,9 @@ def render_frame_views(
 
 if __name__ == "__main__":
 
+    # azim/elev offsets applied on top of the frame's original camera pose
+    VIEW_OFFSETS = get_view_offsets(ELEV)
+
     # Set up command line argument parser
     parser = ArgumentParser(description="Rendering script parameters (single frame, one or more views)")
     modelParam = ModelParams()
@@ -114,7 +117,8 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--expname", type=str, default="")
 
-    parser.add_argument("--frame_idx", default=0, type=int) # index of the single frame to render
+    parser.add_argument("--frame_idxs", nargs="+", type=int, default=[0]) # indices of the frames to render
+    parser.add_argument("--frame_stride", type=int, default=None) # if set, render every Nth frame of the video set instead of --frame_idxs
     parser.add_argument("--views", nargs="+", default=["central", "left", "right", "up", "down"], choices=list(VIEW_OFFSETS.keys())) # one or more views, relative to the frame's original pose
     parser.add_argument("--concat", action=argparse.BooleanOptionalAction, default=True) # concat rendered views into one titled figure (--no-concat to disable)
 
@@ -135,8 +139,6 @@ if __name__ == "__main__":
     set_seed(0) # Initialize random seed
     torch.cuda.set_device(torch.device("cuda:0"))
 
-    print("Rendering ", args.model_path, f"(frame {args.frame_idx}, views: {args.views})")
-
     modelParam = modelParam.extract(args)
     modelHiddenParam = modelHiddenParam.extract(args)
     pipelineParam = pipelineParam.extract(args)
@@ -153,17 +155,24 @@ if __name__ == "__main__":
         bg_color = [1, 1, 1] if modelParam.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
-        render_frame_views(
-            modelParam.model_path,
-            scene.loaded_iter,
-            scene.getVideoViews()[args.frame_idx],
-            scene.gaussians,
-            pipelineParam,
-            background,
-            modelParam.no_fine,
-            args.frame_idx,
-            args.views,
-            args.concat,
-        )
+        video_views = scene.getVideoViews()
+        view_offsets = {viewname: VIEW_OFFSETS[viewname] for viewname in args.views}
+        frame_idxs = list(range(0, len(video_views), args.frame_stride)) if args.frame_stride else args.frame_idxs
+
+        print("Rendering ", args.model_path, f"(frames {frame_idxs}, views: {args.views})")
+
+        for frame_idx in tqdm(frame_idxs, desc="Rendering sideviews"):
+            render_frame_views(
+                modelParam.model_path,
+                scene.loaded_iter,
+                video_views[frame_idx],
+                scene.gaussians,
+                pipelineParam,
+                background,
+                modelParam.no_fine,
+                frame_idx,
+                view_offsets,
+                args.concat,
+            )
 
     print("\nRendering complete")

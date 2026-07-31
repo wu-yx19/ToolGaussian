@@ -28,6 +28,8 @@ from utils.image_utils import write_images, write_video
 from argparse import ArgumentParser
 from arguments import GroupParams, ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
 
+from sideview import render_frame_views, get_view_offsets
+
 # render a set of views
 def render_set(
     model_path : str,
@@ -109,7 +111,10 @@ def render_sets(
     skip_test: bool,
     skip_video: bool,
     reconstruct: bool,
-    render_test: bool
+    render_test: bool,
+    frame_idxs, # frames in the video set to render sideviews for
+    frame_stride, # if set, overrides frame_idxs with every Nth frame of the video set
+    elev: float,
 ):
 
     with torch.no_grad():
@@ -162,6 +167,25 @@ def render_sets(
                 reconstruct=reconstruct,
             )
 
+        video_views = scene.getVideoViews()
+        if frame_stride:
+            frame_idxs = list(range(0, len(video_views), frame_stride))
+        if frame_idxs:
+            view_offsets = get_view_offsets(elev)
+            for frame_idx in frame_idxs:
+                render_frame_views(
+                    modelParam.model_path,
+                    scene.loaded_iter,
+                    video_views[frame_idx],
+                    scene.gaussians,
+                    pipelineParam,
+                    background,
+                    modelParam.no_fine,
+                    frame_idx,
+                    view_offsets,
+                    True, # concat
+                )
+
 
 if __name__ == "__main__":
 
@@ -185,6 +209,11 @@ if __name__ == "__main__":
     parser.add_argument("--skip_video", action="store_true") # all Views
     parser.add_argument("--reconstruct", action="store_true") # reconstruct point cloud from RGB-D
     parser.add_argument("--render_test", action="store_true") # test rendering speed on the video set
+
+    parser.add_argument("--frame_idxs", nargs="+", type=int, default=[]) # frames in the video set to render sideviews for
+    parser.add_argument("--frame_stride", type=int, default=None) # if set, render sideviews for every Nth frame of the video set instead of --frame_idxs
+    parser.add_argument("--elev", type=float, default=10.0) # elev/azim offset magnitude (degrees) for the sideviews
+
 
     # configs > cmdline > model cfg_args > default
     args = parser.parse_args(sys.argv[1:])
@@ -214,7 +243,10 @@ if __name__ == "__main__":
         args.skip_test,
         args.skip_video,
         args.reconstruct,
-        args.render_test
+        args.render_test,
+        args.frame_idxs,
+        args.frame_stride,
+        args.elev,
     )
 
     print("\nRendering complete")
