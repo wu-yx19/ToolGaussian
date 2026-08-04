@@ -314,27 +314,25 @@ def scene_reconstruction(
                     iteration > optimizationParam.densify_from_iter
                     and iteration % optimizationParam.densification_interval == 0
                 ):
-                    size_threshold = (
-                        optimizationParam.densify_size_threshold
-                        if iteration > optimizationParam.opacity_reset_interval
-                        else None
-                    )
                     scene.gaussians.densify(
                         densify_threshold,
                         opacity_threshold,
                         scene.cameras_extent,
-                        size_threshold,
                     )
 
                 if (
                     iteration > optimizationParam.pruning_from_iter
                     and iteration % optimizationParam.pruning_interval == 0
                 ):
-                    size_threshold = (
-                        optimizationParam.prune_size_threshold
-                        if iteration > optimizationParam.opacity_reset_interval
-                        else None
-                    )
+                    if optimizationParam.opacity_reset_interval > 0:
+                        iters_since_reset = iteration % optimizationParam.opacity_reset_interval
+                        size_threshold = (
+                            optimizationParam.prune_size_threshold
+                            if iters_since_reset > optimizationParam.size_prune_grace_period
+                            else None
+                        )
+                    else:
+                        size_threshold = optimizationParam.prune_size_threshold
                     scene.gaussians.prune(
                         densify_threshold,
                         opacity_threshold,
@@ -343,8 +341,10 @@ def scene_reconstruction(
                         optimizationParam.prune_scale_extent_ratio,
                     )
 
-                if iteration % optimizationParam.opacity_reset_interval == 0 or (
-                    modelParam.white_background and iteration == optimizationParam.densify_from_iter # ?
+                if optimizationParam.opacity_reset_interval > 0 and (
+                    iteration % optimizationParam.opacity_reset_interval == 0 or (
+                        modelParam.white_background and iteration == optimizationParam.densify_from_iter # ?
+                    )
                 ):
                     print("reset opacity")
                     scene.gaussians.reset_opacity()

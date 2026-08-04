@@ -71,6 +71,7 @@ def scene_reconstruction(
     stage,
     tb_writer,
     timer,
+    log_point_counts=False,
 ):
     timer.start()
 
@@ -281,14 +282,14 @@ def scene_reconstruction(
             ema_loss_for_log = (1 - ema_smoothness) * loss.item() + ema_smoothness * ema_loss_for_log # Exponential Moving Average
             ema_psnr_for_log = (1 - ema_smoothness) * psnr_ + ema_smoothness * ema_psnr_for_log
             total_point = scene.gaussians._xyz.shape[0]
-            n_deform = int(scene.gaussians._deform_flags.sum().item())
+            n_visible = int(visibility_filter.sum().item())
             if iteration % 10 == 0:
                 progress_bar.set_postfix(
                     {
                         "Loss": f"{ema_loss_for_log:.{7}f}",
                         "psnr": f"{float(ema_psnr_for_log):.{2}f}",
                         "point": f"{total_point}",
-                        "deform": f"{n_deform}",
+                        "visible": f"{n_visible}",
                     }
                 )
                 progress_bar.update(10) # advance 10 steps and print
@@ -298,7 +299,7 @@ def scene_reconstruction(
             # Log and save
             timer.pause()
             if tb_writer:
-                tb_writer.add_scalar(f'{stage}/n_deform_points', n_deform, iteration)
+                tb_writer.add_scalar(f'{stage}/n_visible_points', n_visible, iteration)
                 training_report(
                     tb_writer,
                     iteration,
@@ -359,40 +360,48 @@ def scene_reconstruction(
                     iteration > optimizationParam.densify_from_iter
                     and iteration % optimizationParam.densification_interval == 0
                 ):
-                    size_threshold = (
-                        optimizationParam.densify_size_threshold
-                        if iteration > optimizationParam.opacity_reset_interval
-                        else None
-                    )
                     scene.gaussians.densify(
                         densify_threshold,
                         opacity_threshold,
                         scene.cameras_extent,
-                        size_threshold,
                     )
+                    if log_point_counts:
+                        print(f"[ITER {iteration}] points after densify: {scene.gaussians.get_xyz.shape[0]}")
 
                 if (
                     iteration > optimizationParam.pruning_from_iter
                     and iteration % optimizationParam.pruning_interval == 0
                 ):
-                    size_threshold = (
-                        optimizationParam.prune_size_threshold
-                        if iteration > optimizationParam.opacity_reset_interval
-                        else None
-                    )
+                    if optimizationParam.opacity_reset_interval > 0:
+                        iters_since_reset = iteration % optimizationParam.opacity_reset_interval
+                        size_threshold = (
+                            optimizationParam.prune_size_threshold
+                            if iters_since_reset > optimizationParam.size_prune_grace_period
+                            else None
+                        )
+                    else:
+                        size_threshold = optimizationParam.prune_size_threshold
                     scene.gaussians.prune(
                         densify_threshold,
                         opacity_threshold,
                         scene.cameras_extent,
                         size_threshold,
                         optimizationParam.prune_scale_extent_ratio,
+                        max_prune_fraction=optimizationParam.max_prune_fraction,
+                        verbose=log_point_counts,
                     )
+                    if log_point_counts:
+                        print(f"[ITER {iteration}] points after prune: {scene.gaussians.get_xyz.shape[0]}")
 
-                if iteration % optimizationParam.opacity_reset_interval == 0 or (
-                    modelParam.white_background and iteration == optimizationParam.densify_from_iter # ?
+                if optimizationParam.opacity_reset_interval > 0 and (
+                    iteration % optimizationParam.opacity_reset_interval == 0 or (
+                        modelParam.white_background and iteration == optimizationParam.densify_from_iter # prune more for white bg
+                    )
                 ):
                     print("reset opacity")
-                    scene.gaussians.reset_opacity()
+                    scene.gaussians.reset_opacity(optimizationParam.opacity_reset_value)
+                    if log_point_counts:
+                        print(f"[ITER {iteration}] points after reset_opacity: {scene.gaussians.get_xyz.shape[0]}")
 
             # Optimizer step
             if iteration < final_iter:
@@ -419,6 +428,7 @@ def training(
     debug_from,
     extra_mark,
     tb_writer,
+    log_point_counts=False,
 ):
 
     gaussians = GaussianModel(modelParam.sh_degree, modelHiddenParam)
@@ -437,6 +447,7 @@ def training(
         "coarse",
         tb_writer,
         timer,
+        log_point_counts,
     )
     if not modelParam.no_fine:
         scene_reconstruction(
@@ -452,6 +463,7 @@ def training(
             "fine",
             tb_writer,
             timer,
+            log_point_counts,
         )
 
 
@@ -501,6 +513,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log_file", action=BooleanOptionalAction, default=True,
         help="mirror terminal output to log.txt in the output folder",
+    )
+    parser.add_argument(
+        "--log_point_counts", action=BooleanOptionalAction, default=False,
+        help="print the gaussian point count after each densify/prune/reset_opacity call",
     )
     parser.add_argument("--load_checkpoint", type=str, default=None) # ?
     parser.add_argument("--expname", type=str, default="")
@@ -552,7 +568,8 @@ if __name__ == "__main__":
         args.load_checkpoint,
         args.debug_from,
         args.extra_mark,
-        tb_writer
+        tb_writer,
+        args.log_point_counts
     )
 
     # All done

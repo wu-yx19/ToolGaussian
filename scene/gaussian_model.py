@@ -305,8 +305,8 @@ class GaussianModel:
         el = PlyElement.describe(elements, 'vertex')
         PlyData([el]).write(path)
 
-    def reset_opacity(self):
-        opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
+    def reset_opacity(self, opacity_reset_value=0.01):
+        opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*opacity_reset_value))
         optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
         self._opacity = optimizable_tensors["opacity"]
 
@@ -384,12 +384,32 @@ class GaussianModel:
         self.xyz_gradient_denom = self.xyz_gradient_denom[valid_points_mask]
         self.max_radii2D = self.max_radii2D[valid_points_mask]
 
-    def prune(self, max_grad, min_opacity, extent, max_screen_size, scale_extent_ratio=0.1):
-        prune_mask = (self.get_opacity < min_opacity).squeeze()
+    def prune(self, max_grad, min_opacity, extent, max_screen_size, scale_extent_ratio=0.1, max_prune_fraction=0.5, verbose=False):
+        opacity_mask = (self.get_opacity < min_opacity).squeeze()
+        prune_mask = opacity_mask
         if max_screen_size:
             big_points_vs = self.max_radii2D > max_screen_size
             big_points_ws = self.get_scaling.max(dim=1).values > scale_extent_ratio * extent
-            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+            candidate_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+
+            prune_fraction = candidate_mask.sum().item() / candidate_mask.numel()
+            if prune_fraction > max_prune_fraction:
+                print(
+                    f"prune: size-based criteria would remove {prune_fraction:.1%} of points "
+                    f"(> max_prune_fraction={max_prune_fraction:.1%}); falling back to opacity-only pruning this pass"
+                )
+            else:
+                prune_mask = candidate_mask
+
+            if verbose:
+                print(
+                    f"prune breakdown: opacity={opacity_mask.sum().item()}, "
+                    f"screen_size={big_points_vs.sum().item()}, "
+                    f"world_scale={big_points_ws.sum().item()}, "
+                    f"union={prune_mask.sum().item()} / {prune_mask.numel()}"
+                )
+        elif verbose:
+            print(f"prune breakdown: opacity={opacity_mask.sum().item()} / {prune_mask.numel()} (size-based pruning off)")
         self.prune_points(prune_mask)
         torch.cuda.empty_cache()
 
@@ -464,7 +484,7 @@ class GaussianModel:
         self.densification_postfix(new_xyz, new_sh_dc, new_sh_rest, new_opacities, new_scaling, new_rotation, new_deformation_flags)
 
 
-    def densify(self, max_grad, min_opacity, extent, max_screen_size): # max_screen_size not used?
+    def densify(self, max_grad, min_opacity, extent):
         grads = self.xyz_gradient_accum / self.xyz_gradient_denom
         grads[grads.isnan()] = 0.0
 
@@ -492,6 +512,8 @@ class GaussianModel:
         # L2 norm of x,y, one value for each Gaussian
         self.xyz_gradient_denom[update_filter] += 1
 
+    # DEAD CODE: never called from train.py, so _deform_flags stays all-True for the
+    # whole run (see render()'s deformation_point mask, which is always a no-op as a result)
     @torch.no_grad()
     def update_deformation_flags(self,threshold):
         # print("origin deformation point nums:",self._deform_flags.sum())

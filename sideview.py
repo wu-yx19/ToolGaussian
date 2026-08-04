@@ -30,8 +30,6 @@ import argparse
 from argparse import ArgumentParser
 from arguments import ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
 
-ELEV = 15
-
 def get_view_offsets(elev):
     return {
         "central": {"azim": 0, "elev": 0},
@@ -99,9 +97,6 @@ def render_frame_views(
 
 if __name__ == "__main__":
 
-    # azim/elev offsets applied on top of the frame's original camera pose
-    VIEW_OFFSETS = get_view_offsets(ELEV)
-
     # Set up command line argument parser
     parser = ArgumentParser(description="Rendering script parameters (single frame, one or more views)")
     modelParam = ModelParams()
@@ -119,8 +114,10 @@ if __name__ == "__main__":
 
     parser.add_argument("--frame_idxs", nargs="+", type=int, default=[0]) # indices of the frames to render
     parser.add_argument("--frame_stride", type=int, default=None) # if set, render every Nth frame of the video set instead of --frame_idxs
-    parser.add_argument("--views", nargs="+", default=["central", "left", "right", "up", "down"], choices=list(VIEW_OFFSETS.keys())) # one or more views, relative to the frame's original pose
+    parser.add_argument("--views", nargs="+", default=["central", "left", "right", "up", "down"], choices=list(get_view_offsets(0).keys())) # one or more views, relative to the frame's original pose
     parser.add_argument("--concat", action=argparse.BooleanOptionalAction, default=True) # concat rendered views into one titled figure (--no-concat to disable)
+    parser.add_argument("--elev", type=float, default=20.0) # elev/azim offset magnitude (degrees) for the sideviews
+
 
     # configs > cmdline > model cfg_args > default
     args = parser.parse_args(sys.argv[1:])
@@ -142,6 +139,10 @@ if __name__ == "__main__":
     modelParam = modelParam.extract(args)
     modelHiddenParam = modelHiddenParam.extract(args)
     pipelineParam = pipelineParam.extract(args)
+
+    # azim/elev offsets applied on top of the frame's original camera pose
+    VIEW_OFFSETS = get_view_offsets(args.elev
+    )
 
     with torch.no_grad():
         gaussians = GaussianModel(modelParam.sh_degree, modelHiddenParam)

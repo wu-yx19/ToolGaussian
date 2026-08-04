@@ -83,12 +83,10 @@ class Scene:
                                                     iteration_str,
                                                    )) # deformation
         else:
-            if modelParam.extra_mark == 'scared':
-                self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent, self.maxtime)
-                print("Loaded point cloud. camera extent: {}".format(self.cameras_extent))
-            else:
-                self.gaussians.create_from_pcd(scene_info.point_cloud, modelParam.camera_extent, self.maxtime)
-                print("Loaded point cloud. camera extent: {}".format(modelParam.camera_extent))
+            if modelParam.extra_mark != 'scared':
+                self.cameras_extent = modelParam.camera_extent
+            self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent, self.maxtime)
+            print("Loaded point cloud. camera extent: {}".format(self.cameras_extent))
 
     def save(self, iteration, stage):
         if stage == "coarse":

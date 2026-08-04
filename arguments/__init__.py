@@ -143,7 +143,8 @@ class OptimizationParams(ParamGroup):
         self.weight_constraint_init = 1
         self.weight_constraint_after = 0.2
         self.weight_decay_iteration = 5000
-        self.opacity_reset_interval = 3000 #
+        self.opacity_reset_interval = -1 # -1 disables periodic opacity reset entirely
+        self.opacity_reset_value = 0.01 # opacity ceiling applied to every point on reset
         self.densification_interval = 100 #
         self.densify_from_iter = 500 #
         self.densify_until_iter = 15_000 #
@@ -152,9 +153,10 @@ class OptimizationParams(ParamGroup):
         self.densify_grad_threshold_after = 0.0002 #
         self.pruning_from_iter = 500 #
         self.pruning_interval = 100 #
-        self.densify_size_threshold = 20 # max_radii2D screen-size cutoff during densify
         self.prune_size_threshold = 40 # max_radii2D screen-size cutoff during prune
         self.prune_scale_extent_ratio = 0.1 # scale.max() > ratio * extent -> pruned as floater
+        self.size_prune_grace_period = 500 # iterations after each opacity reset before size-based pruning re-arms
+        self.max_prune_fraction = 0.5 # safety cap: prune() falls back to opacity-only if size criteria would remove more than this fraction
         self.sideview_smooth_weight = 0.03 # TV-loss weight on a rendered synthetic side view (train-sideview.py)
         self.sideview_reg_interval = -1 # render+regularize a side view every N iterations; -1 disables it
         self.sideview_elev = 20 # elevation offset (degrees) used to synthesize the side view (train-sideview.py)
