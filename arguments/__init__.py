@@ -137,7 +137,7 @@ class OptimizationParams(ParamGroup):
         self.opacity_lr = 0.05 #
         self.scaling_lr = 0.005 #
         self.rotation_lr = 0.001 #
-        self.percent_dense = 0.01 #
+        self.percent_dense = 0.01 # scale/extent ratio cutoff during densify: below -> clone, above -> split
         self.lambda_dssim = 0 #
         self.lambda_lpips = 0 #
         self.weight_constraint_init = 1

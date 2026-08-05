@@ -25,7 +25,7 @@ from utils.general_utils import format_output, set_seed
 from utils.graphics_utils import fov2focal, reconstruct_point_cloud
 from utils.image_utils import write_images, write_video
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, BooleanOptionalAction
 from arguments import GroupParams, ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
 
 from sideview import render_frame_views, get_view_offsets
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--expname", type=str, default="")
 
-    parser.add_argument("--skip_train", action="store_true")
+    parser.add_argument("--skip_train", action=BooleanOptionalAction, default=True)
     parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--skip_video", action="store_true") # all Views
     parser.add_argument("--reconstruct", action="store_true") # reconstruct point cloud from RGB-D
