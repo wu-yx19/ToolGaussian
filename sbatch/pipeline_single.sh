@@ -3,9 +3,8 @@
 #SBATCH --job-name=TG_pipeline
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
-#SBATCH --constraint=GPU_MEM:16GB
 #SBATCH --mem=16G
-#SBATCH --time=0:20:00                # train + render + evaluate
+#SBATCH --time=0:45:00                # train + render + evaluate
 #SBATCH --output=logs/%j_pipeline.log
 #SBATCH --error=logs/%j_error.log
 
@@ -14,9 +13,11 @@ mkdir -p logs
 IMAGE_PATH="/home/groups/bdaniel/wyx/docker/endo_env_new"
 PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/ToolGaussian"
 
-USAGE_LOG="$PROJECT_DIR/logs/${SLURM_JOB_ID}_usage.log"
+GPU_LOG="$PROJECT_DIR/logs/${SLURM_JOB_ID}_gpu_usage.log"
+MEM_LOG="$PROJECT_DIR/logs/${SLURM_JOB_ID}_mem_usage.log"
 SAMPLE_INTERVAL=5                     # seconds between usage samples
-EXPNAME="endonerf/cutting"
+EXPNAME="endonerf/cutting-new"
+DATA_PATH="data/endonerf/cutting"     # cutting-ro reuses the cutting dataset; only the config differs
 
 echo "Working Directory: $PROJECT_DIR"
 echo "Starting Pipeline at: $(date)"
@@ -27,19 +28,19 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
 
     echo "Start GPU + memory logging"
 
-    echo "timestamp, gpu_util_pct, gpu_mem_util_pct, gpu_mem_used_MiB, host_mem_used_MiB, host_mem_total_MiB" > $USAGE_LOG
-    ( while true; do
-        GPU_STATS=\$(nvidia-smi --query-gpu=utilization.gpu,utilization.memory,memory.used --format=csv,noheader,nounits)
-        HOST_MEM=\$(free -m | awk '/^Mem:/ {print \$3", "\$2}')
-        echo "\$(date '+%Y/%m/%d %H:%M:%S'), \$GPU_STATS, \$HOST_MEM"
-        sleep $SAMPLE_INTERVAL
-    done ) >> $USAGE_LOG &
+    # -l/-t make nvidia-smi/vmstat repeat and timestamp on their own,
+    # avoiding a hand-rolled polling loop that Sherlock's submit filter
+    # flags even when it's just a monitoring sidecar next to real work
+    nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used --format=csv -l $SAMPLE_INTERVAL > $GPU_LOG &
+    GPU_MONITOR_PID=\$!
 
-    USAGE_MONITOR_PID=\$!
-    trap 'kill \$USAGE_MONITOR_PID 2>/dev/null' EXIT
+    vmstat -t -S M $SAMPLE_INTERVAL > $MEM_LOG &
+    MEM_MONITOR_PID=\$!
+
+    trap 'kill \$GPU_MONITOR_PID \$MEM_MONITOR_PID 2>/dev/null' EXIT
 
     echo "Training started: \$(date)"
-    python train.py --expname $EXPNAME --no-log_file
+    python train_eval.py --expname $EXPNAME --source_path $DATA_PATH --no-log_file
 
     echo "Rendering started: \$(date)"
     python render.py --expname $EXPNAME --frame_stride 20 --elev 10

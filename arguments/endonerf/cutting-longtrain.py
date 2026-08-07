@@ -10,10 +10,10 @@ OptimizationParams = dict(
     deformation_lr_delay_mult = 0.01,
     grid_lr_init = 0.0016,
     grid_lr_final = 0.000016,
-    iterations = 3000,
+    iterations = 10000,
     percent_dense = 0.01,
     prune_scale_extent_ratio = 0.5,
-    densify_until_iter = 2500,
+    densify_until_iter = 7500,
     position_lr_max_steps = 3000,
     pruning_interval = 100,
     sideview_smooth_weight = 0.1,
@@ -23,6 +23,12 @@ OptimizationParams = dict(
     anisotropy_weight = 0.01,
     anisotropy_ratio_threshold = 10.0,
     anisotropy_size_power = 0.5
+)
+
+TestEvalParams = dict(
+    test_eval_interval = 500,
+    test_eval_start_iter = 0,
+    test_eval_max_views = 0,
 )
 
 ModelHiddenParams = dict(

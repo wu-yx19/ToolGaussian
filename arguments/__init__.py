@@ -12,7 +12,7 @@
 #
 
 import os
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, BooleanOptionalAction, Namespace
 
 
 class GroupParams:
@@ -34,24 +34,26 @@ class ParamGroup:
             if key.startswith("_"): # allow shorthand
                 shorthand = True
                 key = key[1:]
-            t = type(value)
-            value = value if not set_default_none else None
+            # a None default has no type to infer from; fall back to str so it stays CLI-overridable
+            # (e.g. --load_checkpoint 5000) instead of registering as the uncallable NoneType
+            t = type(value) if value is not None else str
+            # list-valued defaults get nargs="+" so multiple values can be passed on the CLI
+            # (e.g. --save_iterations 1000 2000 3000); element type is inferred from the default,
+            # falling back to int for an empty default since every list param here is numeric
+            is_list = isinstance(value, list)
+            elem_t = type(value[0]) if is_list and value else int
+            flags = ["--" + key]
             if shorthand:
-                if isinstance(value, bool):
-                    group.add_argument(
-                        "--" + key, ("-" + key[0:1]), default=value, action="store_true"
-                    )
-                else:
-                    group.add_argument(
-                        "--" + key, ("-" + key[0:1]), default=value, type=t
-                    )
+                flags.append("-" + key[0:1])
+            value = value if not set_default_none else None
+            if isinstance(value, bool):
+                # a True default needs an explicit off-switch (--no-<key>); store_true can only turn it on
+                action = BooleanOptionalAction if value else "store_true"
+                group.add_argument(*flags, default=value, action=action)
+            elif is_list:
+                group.add_argument(*flags, nargs="+", default=value, type=elem_t)
             else:
-                if isinstance(value, bool):
-                    group.add_argument("--" + key, default=value, action="store_true")
-                else:
-                    group.add_argument(
-                        "--" + key, default=value, type=t
-                    )  # add to parser
+                group.add_argument(*flags, default=value, type=t)  # add to parser
 
     def extract(self, args) -> GroupParams:
         group = GroupParams()
@@ -92,6 +94,8 @@ class PipelineParams(ParamGroup):
         self.convert_SHs_python = False
         self.compute_cov3D_python = False
         self.debug = False
+        self.debug_from = -1 # iteration at which to flip debug on mid-run; -1 disables
+        self.detect_anomaly = False # torch.autograd.set_detect_anomaly
 
 
 class ModelHiddenParams(ParamGroup): # deformation
@@ -117,12 +121,37 @@ class ModelHiddenParams(ParamGroup): # deformation
         self.no_do = False #
 
 
+class RuntimeParams(ParamGroup): # network GUI connection + logging/verbosity, not the training math itself
+    def __init__(self):
+        super().__init__("RuntimeParams")
+        self.ip = "127.0.0.1" # network GUI listen address
+        self.port = 6009 # network GUI listen port
+        self.quiet = False # suppress stdout progress/log lines
+        self.log_file = True # mirror terminal output to log.txt in the output folder
+        self.log_point_counts = False # print the gaussian point count after each densify/prune/reset_opacity call
+
+
+class TestEvalParams(ParamGroup): # in-training test-set evaluation (train_eval.py)
+    def __init__(self):
+        super().__init__("TestEvalParams")
+        self.test_eval_interval = -1 # render+score held-out test views every N iterations during the fine stage; -1 disables
+        self.test_eval_start_iter = 0 # fine-stage iteration before which evaluation is skipped (never runs during coarse)
+        self.test_eval_max_views = 0 # cap each evaluation to this many (evenly-subsampled) views; 0 = use all test views
+        self.test_eval_ssim = False # also compute SSIM (slower than PSNR alone)
+        self.test_eval_lpips = False # also compute LPIPS (slowest option)
+
+
 class OptimizationParams(ParamGroup):
     def __init__(self):
         super().__init__("OptimizationParams")
         # self.dataloader = False
-        self.iterations = 30_000 #
+        self.iterations = 3000 #
         self.coarse_iterations = 3000 #
+        self.save_iterations = [ # iterations at which to save the Gaussians; final --iterations is always appended
+            2000, 3000, 4000, 5000, 6000, 9000, 10000, 14000, 20000, 30_000, 45000, 60000,
+        ]
+        self.checkpoint_iterations = [] # iterations at which to save an optimizer checkpoint; empty = never
+        self.load_checkpoint = None # checkpoint iteration to resume training from; None = start fresh
         self.position_lr_init = 0.00016 #
         self.position_lr_final = 0.0000016 #
         self.position_lr_delay_mult = 0.01 #
@@ -192,7 +221,7 @@ def get_combined_args(args_cmdline):
 
 
 def merge_hparams(args, config):
-    params = ["OptimizationParams", "ModelHiddenParams", "ModelParams", "PipelineParams"]
+    params = ["OptimizationParams", "ModelHiddenParams", "ModelParams", "PipelineParams", "TestEvalParams", "RuntimeParams"]
     for param in params:
         if param in config.keys():
             for key, value in config[param].items():

@@ -10,15 +10,14 @@
 #
 # Updated by Y. W. 2026
 #
-# Same training loop as train.py, plus optional in-training evaluation
-# against the held-out test views (frequency/metrics/subsampling all
-# controlled by --test_eval_* arguments, off by default).
+# Training loop with optional in-training evaluation against the held-out
+# test views (frequency/metrics/subsampling all controlled by
+# --test_eval_* arguments, off by default).
 #
 
 import sys
-from pathlib import Path
-from argparse import ArgumentParser, Namespace, BooleanOptionalAction
-from random import randint, choice
+from argparse import ArgumentParser, Namespace
+from random import randint, choice, sample
 import os
 import lpips
 import numpy as np
@@ -33,7 +32,7 @@ from utils.time_utils import Timer
 
 from scene import GaussianModel, Scene
 from scene.gaussian_renderer import network_gui, render
-from arguments import ModelHiddenParams, ModelParams, PipelineParams, OptimizationParams, merge_hparams
+from arguments import ModelHiddenParams, ModelParams, PipelineParams, OptimizationParams, TestEvalParams, RuntimeParams, merge_hparams
 from torchmetrics.functional.regression import pearson_corrcoef
 
 try:
@@ -75,8 +74,7 @@ def evaluate_test_views(
     # training loss, not evaluate.py's masked variants.
     test_views = scene.getTestViews()
     if max_views and max_views < len(test_views):
-        stride = len(test_views) / max_views
-        views = [test_views[int(i * stride)] for i in range(max_views)]
+        views = sample(test_views, max_views)
     else:
         views = test_views
 
@@ -115,25 +113,18 @@ def scene_reconstruction(
     optimizationParam,
     modelHiddenParam,
     pipelineParam,
-    saving_iterations, # save gaussians
-    checkpoint_iterations, # save checkpoints
-    load_checkpoint,
-    debug_from,
+    testEvalParam,
+    runtimeParam,
     stage,
     tb_writer,
     timer,
-    log_point_counts=False,
-    test_eval_interval=-1,
-    test_eval_max_views=0,
-    test_eval_ssim=False,
-    test_eval_lpips=False,
 ):
     timer.start()
 
     first_iter = 0
     scene.gaussians.training_setup(optimizationParam) # set up optimizer
-    if load_checkpoint:
-        (model_params, first_iter) = torch.load(scene.model_path + "/chkpnt" + str(load_checkpoint) + ".pth") # first_iter: iteration number
+    if stage == "fine" and optimizationParam.load_checkpoint:
+        (model_params, first_iter) = torch.load(scene.model_path + "/chkpnt" + str(optimizationParam.load_checkpoint) + ".pth") # first_iter: iteration number
         scene.gaussians.restore(model_params, optimizationParam)
 
     bg_color = [1, 1, 1] if modelParam.white_background else [0, 0, 0]
@@ -174,7 +165,7 @@ def scene_reconstruction(
                     pipelineParam.compute_cov3D_python,
                     keep_alive,
                     scaling_modifer,
-                    ts,
+                    _,
                 ) = network_gui.receive()
                 if custom_cam is not None:
                     net_image = render(
@@ -214,7 +205,7 @@ def scene_reconstruction(
             idx = randint(0, len(viewpoint_stack) - 1) # random
         viewpoint_cams = [viewpoint_stack[idx]] # one random view
 
-        if (iteration - 1) == debug_from:
+        if (iteration - 1) == pipelineParam.debug_from:
             pipelineParam.debug = True # ?
 
         images = []
@@ -290,9 +281,10 @@ def scene_reconstruction(
 
         loss = Ll1 + depth_loss + tv_loss
 
+        deform_reg_loss = torch.tensor(0.0).cuda()
         if stage == "fine" and modelHiddenParam.time_smoothness_weight != 0:
-            tv_loss = scene.gaussians.compute_regularization() # time_smoothness_weight, l1_time_planes_weight, plane_tv_weight
-            loss += tv_loss
+            deform_reg_loss = scene.gaussians.compute_regularization() # time_smoothness_weight, l1_time_planes_weight, plane_tv_weight
+            loss += deform_reg_loss
         if optimizationParam.lambda_dssim != 0:
             ssim_loss = ssim(rendered_images, gt_images)
             loss += optimizationParam.lambda_dssim * (1.0 - ssim_loss)
@@ -359,17 +351,27 @@ def scene_reconstruction(
                     tb_writer,
                     iteration,
                     Ll1,
+                    depth_loss,
+                    tv_loss,
+                    deform_reg_loss,
                     loss,
+                    psnr_,
+                    total_point,
                     iter_start.elapsed_time(iter_end),
                     stage,
                 )
 
-            if iteration in saving_iterations:
+            if iteration in optimizationParam.save_iterations:
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration, stage)
 
-            # In-training test-set evaluation
-            if test_eval_interval > 0 and iteration % test_eval_interval == 0:
+            # In-training test-set evaluation (fine stage only, once past the warmup iteration)
+            if (
+                stage == "fine"
+                and testEvalParam.test_eval_interval > 0
+                and iteration >= testEvalParam.test_eval_start_iter
+                and iteration % testEvalParam.test_eval_interval == 0
+            ):
                 evaluate_test_views(
                     scene,
                     pipelineParam,
@@ -377,10 +379,10 @@ def scene_reconstruction(
                     stage,
                     iteration,
                     tb_writer,
-                    include_ssim=test_eval_ssim,
-                    include_lpips=test_eval_lpips,
+                    include_ssim=testEvalParam.test_eval_ssim,
+                    include_lpips=testEvalParam.test_eval_lpips,
                     lpips_model=lpips_model,
-                    max_views=test_eval_max_views,
+                    max_views=testEvalParam.test_eval_max_views,
                 )
 
             # render process
@@ -435,7 +437,7 @@ def scene_reconstruction(
                         opacity_threshold,
                         scene.cameras_extent,
                     )
-                    if log_point_counts:
+                    if runtimeParam.log_point_counts:
                         print(f"[ITER {iteration}] points after densify: {scene.gaussians.get_xyz.shape[0]}")
 
                 if (
@@ -458,9 +460,9 @@ def scene_reconstruction(
                         size_threshold,
                         optimizationParam.prune_scale_extent_ratio,
                         max_prune_fraction=optimizationParam.max_prune_fraction,
-                        verbose=log_point_counts,
+                        verbose=runtimeParam.log_point_counts,
                     )
-                    if log_point_counts:
+                    if runtimeParam.log_point_counts:
                         print(f"[ITER {iteration}] points after prune: {scene.gaussians.get_xyz.shape[0]}")
 
                 if optimizationParam.opacity_reset_interval > 0 and (
@@ -470,7 +472,7 @@ def scene_reconstruction(
                 ):
                     print("reset opacity")
                     scene.gaussians.reset_opacity(optimizationParam.opacity_reset_value)
-                    if log_point_counts:
+                    if runtimeParam.log_point_counts:
                         print(f"[ITER {iteration}] points after reset_opacity: {scene.gaussians.get_xyz.shape[0]}")
 
             # Optimizer step
@@ -478,8 +480,8 @@ def scene_reconstruction(
                 scene.gaussians.optimizer.step()
                 scene.gaussians.optimizer.zero_grad(set_to_none=True)
 
-            # Save checkpoint
-            if iteration in checkpoint_iterations: # default none
+            # Save checkpoint (fine stage only, so resume is unambiguous)
+            if stage == "fine" and iteration in optimizationParam.checkpoint_iterations: # default none
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save(
                     (scene.gaussians.capture(), iteration),
@@ -492,41 +494,29 @@ def training(
     modelHiddenParam,
     optimizationParam,
     pipelineParam,
-    saving_iterations,
-    checkpoint_iterations,
-    load_checkpoint,
-    debug_from,
-    extra_mark,
+    testEvalParam,
+    runtimeParam,
     tb_writer,
-    log_point_counts=False,
-    test_eval_interval=-1,
-    test_eval_max_views=0,
-    test_eval_ssim=False,
-    test_eval_lpips=False,
 ):
 
     gaussians = GaussianModel(modelParam.sh_degree, modelHiddenParam)
     timer = Timer()
     scene = Scene(modelParam, gaussians, load_coarse=modelParam.no_fine) # scene contains Gaussians
-    scene_reconstruction(
-        scene,
-        modelParam,
-        optimizationParam,
-        modelHiddenParam,
-        pipelineParam,
-        saving_iterations,
-        checkpoint_iterations,
-        load_checkpoint,
-        debug_from,
-        "coarse",
-        tb_writer,
-        timer,
-        log_point_counts,
-        test_eval_interval,
-        test_eval_max_views,
-        test_eval_ssim,
-        test_eval_lpips,
-    )
+    if not optimizationParam.load_checkpoint:
+        # resuming loads a fine-stage checkpoint that overwrites every Gaussian/optimizer
+        # state coarse would produce anyway, so redoing coarse would just be wasted compute
+        scene_reconstruction(
+            scene,
+            modelParam,
+            optimizationParam,
+            modelHiddenParam,
+            pipelineParam,
+            testEvalParam,
+            runtimeParam,
+            "coarse",
+            tb_writer,
+            timer,
+        )
     if not modelParam.no_fine:
         scene_reconstruction(
             scene,
@@ -534,18 +524,11 @@ def training(
             optimizationParam,
             modelHiddenParam,
             pipelineParam,
-            saving_iterations,
-            checkpoint_iterations,
-            load_checkpoint,
-            debug_from,
+            testEvalParam,
+            runtimeParam,
             "fine",
             tb_writer,
             timer,
-            log_point_counts,
-            test_eval_interval,
-            test_eval_max_views,
-            test_eval_ssim,
-            test_eval_lpips,
         )
 
 
@@ -561,62 +544,16 @@ if __name__ == "__main__":
     optimizationParam = OptimizationParams()
     pipelineParam = PipelineParams()
     modelHiddenParam = ModelHiddenParams()
+    testEvalParam = TestEvalParams()
+    runtimeParam = RuntimeParams()
 
     modelParam.register(parser)
     optimizationParam.register(parser)
     pipelineParam.register(parser)
     modelHiddenParam.register(parser)
+    testEvalParam.register(parser)
+    runtimeParam.register(parser)
 
-    parser.add_argument("--ip", type=str, default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=6009)
-    parser.add_argument("--debug_from", type=int, default=-1)
-    parser.add_argument("--detect_anomaly", action="store_true", default=False)
-    parser.add_argument(
-        "--save_iterations",
-        nargs="+", # one or more values
-        type=int,
-        default=[
-            2000,
-            3000,
-            4000,
-            5000,
-            6000,
-            9000,
-            10000,
-            14000,
-            20000,
-            30_000,
-            45000,
-            60000,
-        ],
-    )
-    parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
-    parser.add_argument("--quiet", action="store_true")
-    parser.add_argument(
-        "--log_file", action=BooleanOptionalAction, default=True,
-        help="mirror terminal output to log.txt in the output folder",
-    )
-    parser.add_argument(
-        "--log_point_counts", action=BooleanOptionalAction, default=False,
-        help="print the gaussian point count after each densify/prune/reset_opacity call",
-    )
-    parser.add_argument(
-        "--test_eval_interval", type=int, default=-1,
-        help="render+score the held-out test views every N iterations; -1 disables in-training test-set evaluation",
-    )
-    parser.add_argument(
-        "--test_eval_max_views", type=int, default=0,
-        help="cap each in-training test-set evaluation to this many (evenly-subsampled) views; 0 = use all test views",
-    )
-    parser.add_argument(
-        "--test_eval_ssim", action=BooleanOptionalAction, default=False,
-        help="also compute SSIM during in-training test-set evaluation (slower than PSNR alone)",
-    )
-    parser.add_argument(
-        "--test_eval_lpips", action=BooleanOptionalAction, default=False,
-        help="also compute LPIPS during in-training test-set evaluation (slowest option)",
-    )
-    parser.add_argument("--load_checkpoint", type=str, default=None) # ?
     parser.add_argument("--expname", type=str, default="")
     parser.add_argument("--configs", type=str, default="")
 
@@ -661,17 +598,9 @@ if __name__ == "__main__":
         modelHiddenParam.extract(args),
         optimizationParam.extract(args),
         pipelineParam.extract(args),
-        args.save_iterations,
-        args.checkpoint_iterations,
-        args.load_checkpoint,
-        args.debug_from,
-        args.extra_mark,
+        testEvalParam.extract(args),
+        runtimeParam.extract(args),
         tb_writer,
-        args.log_point_counts,
-        args.test_eval_interval,
-        args.test_eval_max_views,
-        args.test_eval_ssim,
-        args.test_eval_lpips,
     )
 
     # All done

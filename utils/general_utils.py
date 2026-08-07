@@ -87,7 +87,12 @@ def training_report(
     tb_writer,
     iteration,
     Ll1,
+    depth_loss,
+    tv_loss,
+    deform_reg_loss,
     loss,
+    psnr,
+    total_points,
     elapsed,
     stage,
 ):
@@ -95,8 +100,19 @@ def training_report(
         f"{stage}/train_loss_patches/l1_loss", Ll1.item(), iteration
     )
     tb_writer.add_scalar(
+        f"{stage}/train_loss_patches/depth_loss", depth_loss.item(), iteration
+    )
+    tb_writer.add_scalar(
+        f"{stage}/train_loss_patches/tv_loss", tv_loss.item(), iteration
+    )
+    tb_writer.add_scalar(
+        f"{stage}/train_loss_patches/deform_reg_loss", deform_reg_loss.item(), iteration
+    )
+    tb_writer.add_scalar(
         f"{stage}/train_loss_patches/total_loss", loss.item(), iteration
     )
+    tb_writer.add_scalar(f"{stage}/train_psnr", psnr.item(), iteration)
+    tb_writer.add_scalar(f"{stage}/total_points", total_points, iteration)
     tb_writer.add_scalar(f"{stage}/iter_time", elapsed, iteration)
 
 

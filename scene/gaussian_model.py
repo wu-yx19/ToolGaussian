@@ -84,8 +84,8 @@ class GaussianModel:
     def restore(self, model_args, training_args):
         (self.active_sh_degree,
             self._xyz,
+            deform_net_state_dict,
             self._deform_flags,
-            self._deform_net,
             # self.grid,
             self._sh_dc,
             self._sh_rest,
@@ -96,7 +96,10 @@ class GaussianModel:
             xyz_gradient_accum,
             denom,
             opt_dict,
+            self.percent_dense,
             self.spatial_lr_scale) = model_args
+        self._deform_net.load_state_dict(deform_net_state_dict)
+        self._deform_net = self._deform_net.to("cuda")
         self.training_setup(training_args)
         self.xyz_gradient_accum = xyz_gradient_accum
         self.xyz_gradient_denom = denom
@@ -512,8 +515,8 @@ class GaussianModel:
         # L2 norm of x,y, one value for each Gaussian
         self.xyz_gradient_denom[update_filter] += 1
 
-    # DEAD CODE: never called from train.py, so _deform_flags stays all-True for the
-    # whole run (see render()'s deformation_point mask, which is always a no-op as a result)
+    # DEAD CODE: never called from the training loop, so _deform_flags stays all-True
+    # for the whole run (see render()'s deformation_point mask, which is always a no-op as a result)
     @torch.no_grad()
     def update_deformation_flags(self,threshold):
         # print("origin deformation point nums:",self._deform_flags.sum())

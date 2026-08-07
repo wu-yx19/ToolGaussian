@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=EndoGS_train       # 任务名
+#SBATCH --job-name=TG_train           # 任务名
 #SBATCH --partition=gpu               # 使用 gpu 分区
 #SBATCH --gpus=1                      # 申请 1 块 GPU
 #SBATCH --constraint=GPU_MEM:16GB     # 强制要求 16GB 显存的卡
@@ -12,7 +12,7 @@
 mkdir -p logs
 
 IMAGE_PATH="/home/groups/bdaniel/wyx/docker/endo_env_new"
-PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/EndoGaussian"
+PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/ToolGaussian"
 
 GPU_LOG="$PROJECT_DIR/logs/${SLURM_JOB_ID}_gpu.log"
 FILE_NAME="hamlyn/hamlyn_seq1" # endonerf/cutting
@@ -30,7 +30,7 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
 
     GPU_MONITOR_PID=\$!
 
-    python train.py -s data/$FILE_NAME \
+    python train_eval.py --source_path data/$FILE_NAME \
         --port 6009 \
         --expname $FILE_NAME \
         --configs arguments/$FILE_NAME.py
