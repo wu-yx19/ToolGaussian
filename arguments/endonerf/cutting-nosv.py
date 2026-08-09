@@ -16,11 +16,11 @@ OptimizationParams = dict(
     densify_until_iter = 5000,
     position_lr_max_steps = 6000,
     pruning_interval = 100,
-    sideview_smooth_weight = 0,  # no sideview regularization
+    sideview_smooth_weight = 0,
     sideview_reg_interval = 10,
     sideview_elev = 20,
     sideview_azims = [0, 90, 180, 270],
-    anisotropy_weight = 0,  # no anisotropy regularization
+    anisotropy_weight = 0.01,
     anisotropy_ratio_threshold = 10.0,
     anisotropy_size_power = 0.5
 )

@@ -29,6 +29,7 @@ from argparse import ArgumentParser, BooleanOptionalAction
 from arguments import GroupParams, ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
 
 from sideview import render_frame_views, get_view_offsets
+from debugtools.scale_opacity_check import run_scale_opacity_check
 
 # render a set of views
 def render_set(
@@ -115,6 +116,7 @@ def render_sets(
     frame_idxs, # frames in the video set to render sideviews for
     frame_stride, # if set, overrides frame_idxs with every Nth frame of the video set
     elev: float,
+    scale_check: bool,
 ):
 
     with torch.no_grad():
@@ -125,6 +127,12 @@ def render_sets(
             load_iteration=iteration, # load
             load_coarse=modelParam.no_fine,
         )
+
+        if scale_check:
+            ply_path = os.path.join(
+                modelParam.model_path, "point_cloud", "iteration_{}".format(scene.loaded_iter), "point_cloud.ply"
+            )
+            run_scale_opacity_check(ply_path, extent=scene.cameras_extent)
 
         bg_color = [1, 1, 1] if modelParam.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -213,6 +221,7 @@ if __name__ == "__main__":
     parser.add_argument("--frame_idxs", nargs="+", type=int, default=[]) # frames in the video set to render sideviews for
     parser.add_argument("--frame_stride", type=int, default=None) # if set, render sideviews for every Nth frame of the video set instead of --frame_idxs
     parser.add_argument("--elev", type=float, default=10.0) # elev/azim offset magnitude (degrees) for the sideviews
+    parser.add_argument("--scale_check", action="store_true") # run debugtools/scale_opacity_check.py on the loaded point cloud
 
 
     # configs > cmdline > model cfg_args > default
@@ -247,6 +256,7 @@ if __name__ == "__main__":
         args.frame_idxs,
         args.frame_stride,
         args.elev,
+        args.scale_check,
     )
 
     print("\nRendering complete")

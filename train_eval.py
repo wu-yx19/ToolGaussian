@@ -269,7 +269,7 @@ def scene_reconstruction(
                 rendered_depths_reshape[mask_tmp != 0, :],
                 gt_depths_reshape[mask_tmp != 0, :],
             )
-            depth_loss = 0.001 * (
+            depth_loss = optimizationParam.lambda_depth_pearson * (
                 1 - pearson_corrcoef(gt_depths_reshape, rendered_depths_reshape)
             )
         else:
@@ -277,7 +277,7 @@ def scene_reconstruction(
 
         depth_tvloss = TV_loss(rendered_depths)
         img_tvloss = TV_loss(rendered_images)
-        tv_loss = 0.03 * (img_tvloss + depth_tvloss)
+        tv_loss = optimizationParam.lambda_tv * (img_tvloss + depth_tvloss)
 
         loss = Ll1 + depth_loss + tv_loss
 
@@ -307,7 +307,7 @@ def scene_reconstruction(
         if optimizationParam.anisotropy_weight != 0:
             loss += optimizationParam.anisotropy_weight * anisotropy_loss(
                 scene.gaussians.get_scaling,
-                optimizationParam.anisotropy_ratio_threshold,
+                optimizationParam.anisotropy_ratio_power,
                 optimizationParam.anisotropy_size_power,
             )
 

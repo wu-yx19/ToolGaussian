@@ -169,6 +169,8 @@ class OptimizationParams(ParamGroup):
         self.percent_dense = 0.01 # scale/extent ratio cutoff during densify: below -> clone, above -> split
         self.lambda_dssim = 0 #
         self.lambda_lpips = 0 #
+        self.lambda_tv = 0.03 # weight on the combined image + depth total-variation loss
+        self.lambda_depth_pearson = 0.001 # weight on the monocular depth pearson-correlation loss
         self.weight_constraint_init = 1
         self.weight_constraint_after = 0.2
         self.weight_decay_iteration = 5000
@@ -190,8 +192,8 @@ class OptimizationParams(ParamGroup):
         self.sideview_reg_interval = -1 # render+regularize a side view every N iterations; -1 disables it
         self.sideview_elev = 20 # elevation offset (degrees) used to synthesize the side view (train-sideview.py)
         self.sideview_azims = [0, 90, 180, 270] # azimuth offsets (degrees) sampled from for the side view; -1 = sample uniformly from [0, 360) instead
-        self.anisotropy_weight = 0 # penalizes per-gaussian scale max/min ratio beyond anisotropy_ratio_threshold; 0 disables it (train-sideview.py)
-        self.anisotropy_ratio_threshold = 5.0 # max/min scale ratio allowed before penalty kicks in
+        self.anisotropy_weight = 0 # penalizes per-gaussian scale max/min ratio via (ratio - 1) ** anisotropy_ratio_power; 0 disables it (train-sideview.py)
+        self.anisotropy_ratio_power = 1.0 # exponent on (ratio - 1); >1 penalizes large anisotropy super-linearly while going easy on mild anisotropy
         self.anisotropy_size_power = 0.5 # penalty is weighted by scaling_max ** this; <1 grows sub-linearly with gaussian size
         self.opacity_threshold_coarse = 0.005 #
         self.opacity_threshold_fine_init = 0.005 #

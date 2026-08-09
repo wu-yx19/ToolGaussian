@@ -57,7 +57,12 @@ class Scene:
             scene_info = dataset.get_scene_info()
 
         self.maxtime = scene_info.maxtime
-        self.cameras_extent = scene_info.nerf_normalization["radius"]
+
+        if modelParam.extra_mark != 'scared':
+            self.cameras_extent = modelParam.camera_extent
+        else:
+            self.cameras_extent = scene_info.nerf_normalization["radius"]
+        print("self.cameras_extent is ", self.cameras_extent)
 
         print("Loading Training Views")
         self.train_views = scene_info.train_views
@@ -82,11 +87,9 @@ class Scene:
                                                     iteration_str,
                                                    )) # deformation
         else:
-            if modelParam.extra_mark != 'scared':
-                self.cameras_extent = modelParam.camera_extent
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent, self.maxtime)
 
-        print("self.cameras_extent is ", self.cameras_extent)
+
 
     def save(self, iteration, stage):
         if stage == "coarse":

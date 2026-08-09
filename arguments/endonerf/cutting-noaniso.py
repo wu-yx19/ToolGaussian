@@ -10,19 +10,25 @@ OptimizationParams = dict(
     deformation_lr_delay_mult = 0.01,
     grid_lr_init = 0.0016,
     grid_lr_final = 0.000016,
-    iterations = 3000,
+    iterations = 6000,
     percent_dense = 0.01,
     prune_scale_extent_ratio = 0.5,
-    densify_until_iter = 2500,
-    position_lr_max_steps = 3000,
+    densify_until_iter = 5000,
+    position_lr_max_steps = 6000,
     pruning_interval = 100,
-    sideview_smooth_weight = 0.1,
-    sideview_reg_interval = 5,
+    sideview_smooth_weight = 0,
+    sideview_reg_interval = 10,
     sideview_elev = 20,
     sideview_azims = [0, 90, 180, 270],
-    anisotropy_weight = 0.01,
-    anisotropy_ratio_threshold = 8.0,
+    anisotropy_weight = 0,  # was 0.01 -- ablated to check whether it's actually doing anything
+    anisotropy_ratio_threshold = 10.0,
     anisotropy_size_power = 0.5
+)
+
+TestEvalParams = dict(
+    test_eval_interval = 500,
+    test_eval_start_iter = 0,
+    test_eval_max_views = 0,
 )
 
 ModelHiddenParams = dict(
@@ -31,7 +37,6 @@ ModelHiddenParams = dict(
      'input_coordinate_dim': 4,
      'output_coordinate_dim': 64,
      'resolution': [64, 64, 64, 100]
-
     },
     multires = [1, 2, 4, 8],
     defor_depth = 0,

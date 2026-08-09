@@ -22,15 +22,19 @@ def TV_loss(x):
     return (tv_h + tv_w) / (B * C * H * W)
 
 
-def anisotropy_loss(scaling, ratio_threshold, size_power=1.0):
-    # penalize per-gaussian max/min scale ratio beyond ratio_threshold (hinge loss),
+def anisotropy_loss(scaling, ratio_power=1.0, size_power=1.0):
+    # continuous penalty on per-gaussian max/min scale ratio: (ratio - 1) ** ratio_power,
     # weighted by scaling_max ** size_power (size_power < 1 -> sub-linear growth with size,
-    # so small needles are cheap and large ones are not, without dominating other losses)
+    # so small needles are cheap and large ones are not, without dominating other losses).
+    # ratio_power > 1 makes the penalty grow super-linearly with anisotropy, so it stays
+    # negligible near ratio=1 and squashes the far tail hard -- unlike a hinge-at-threshold
+    # loss, this has nonzero gradient everywhere and shrinks the whole distribution instead
+    # of just clipping outliers above a fixed cutoff.
     scaling_max = scaling.max(dim=1).values
     scaling_min = scaling.min(dim=1).values
     ratio = scaling_max / (scaling_min + 1e-8)
-    hinge = torch.clamp(ratio, min=ratio_threshold) - ratio_threshold
-    return (hinge * scaling_max.pow(size_power)).mean()
+    penalty = (ratio - 1).pow(ratio_power)
+    return (penalty * scaling_max.pow(size_power)).mean()
 
 
 def lpips_loss(img1, img2, lpips_model):

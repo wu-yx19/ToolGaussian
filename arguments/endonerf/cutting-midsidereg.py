@@ -16,12 +16,12 @@ OptimizationParams = dict(
     densify_until_iter = 5000,
     position_lr_max_steps = 6000,
     pruning_interval = 100,
-    sideview_smooth_weight = 0,  # no sideview regularization
-    sideview_reg_interval = 10,
+    sideview_smooth_weight = 0.1,
+    sideview_reg_interval = 5,   # was 10 -- regularize side views twice as often to fight remaining holes
     sideview_elev = 20,
-    sideview_azims = [0, 90, 180, 270],
-    anisotropy_weight = 0,  # no anisotropy regularization
-    anisotropy_ratio_threshold = 10.0,
+    sideview_azims = -1,
+    anisotropy_weight = 5e-5,   # was 1e-4 -- power=1.5 grows faster on the tail than power=1, lower weight to compensate
+    anisotropy_ratio_power = 1.5, # was 1.0 -- between the too-gentle linear penalty and the too-strong power=2
     anisotropy_size_power = 0.5
 )
 
