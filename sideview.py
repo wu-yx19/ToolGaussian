@@ -26,9 +26,8 @@ from utils.general_utils import format_output, set_seed
 from utils.image_utils import to8b, save_with_title, concat_with_title
 from utils.graphics_utils import process_view
 
-import argparse
 from argparse import ArgumentParser
-from arguments import ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
+from arguments import ModelHiddenParams, ModelParams, PipelineParams, SideviewParams, get_combined_args, merge_hparams
 
 def get_view_offsets(elev):
     return {
@@ -48,8 +47,10 @@ def render_frame_views(
     background, # tensor
     no_fine, # coarse
     frame_idx,
+    elev, # elevation magnitude these view_offsets were built from, only used to namespace the concat output
     view_offsets,
     concat,
+    save_depth,
 ):
     depth = view.original_depth
     depth = depth.cpu().numpy() if torch.is_tensor(depth) else np.asarray(depth)
@@ -63,6 +64,7 @@ def render_frame_views(
     stage = "coarse" if no_fine else "fine"
 
     render_images = []
+    depth_images = []
     for view_name, offset in view_offsets.items():
 
         azim_deg = offset["azim"]
@@ -70,9 +72,10 @@ def render_frame_views(
 
         elev_dir = f"elev{elev_deg:.0f}"
         image_path = os.path.join(out_path, elev_dir, "renders")
-        depth_path = os.path.join(out_path, elev_dir, "depth")
         makedirs(image_path, exist_ok=True)
-        makedirs(depth_path, exist_ok=True)
+        if save_depth:
+            depth_path = os.path.join(out_path, elev_dir, "depth")
+            makedirs(depth_path, exist_ok=True)
 
         view_new = process_view(view, azim_deg, elev_deg, distance)
 
@@ -86,13 +89,19 @@ def render_frame_views(
         save_with_title(render_image, title, os.path.join(image_path, f"render_{suffix}.png"))
         render_images.append(render_image)
 
-        render_depth = np.clip(rendering["depth"].cpu().squeeze().numpy(), 0, 255).astype(np.uint8)
-        save_with_title(render_depth, title, os.path.join(depth_path, f"depth_{suffix}.png"))
+        if save_depth:
+            render_depth = np.clip(rendering["depth"].cpu().squeeze().numpy(), 0, 255).astype(np.uint8)
+            render_depth = cv2.cvtColor(render_depth, cv2.COLOR_GRAY2BGR)
+            save_with_title(render_depth, title, os.path.join(depth_path, f"depth_{suffix}.png"))
+            depth_images.append(render_depth)
 
     if concat:
         model_name = os.sep.join(os.path.normpath(model_path).split(os.sep)[-2:])
-        concat_path = os.path.join(out_path, f"frame{frame_idx}_concat.png")
+        concat_path = os.path.join(out_path, f"frame{frame_idx}_elev{elev:.0f}_concat.png")
         concat_with_title(render_images, model_name, concat_path)
+        if save_depth:
+            depth_concat_path = os.path.join(out_path, f"frame{frame_idx}_elev{elev:.0f}_concat_depth.png")
+            concat_with_title(depth_images, model_name, depth_concat_path)
 
 
 if __name__ == "__main__":
@@ -102,22 +111,18 @@ if __name__ == "__main__":
     modelParam = ModelParams()
     pipelineParam = PipelineParams()
     modelHiddenParam = ModelHiddenParams()
+    sideviewParam = SideviewParams()
+    sideviewParam.frame_idxs = [0] # sideview.py renders frame 0 by default, unlike render.py
 
     modelParam.register(parser, set_default_none=True)
     pipelineParam.register(parser)
     modelHiddenParam.register(parser)
+    sideviewParam.register(parser)
 
     parser.add_argument("--configs", type=str)
     parser.add_argument("--iteration", default=-1, type=int) # load iteraton, default -1 -> maximum iteration
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--expname", type=str, default="")
-
-    parser.add_argument("--frame_idxs", nargs="+", type=int, default=[0]) # indices of the frames to render
-    parser.add_argument("--frame_stride", type=int, default=None) # if set, render every Nth frame of the video set instead of --frame_idxs
-    parser.add_argument("--views", nargs="+", default=["central", "left", "right", "up", "down"], choices=list(get_view_offsets(0).keys())) # one or more views, relative to the frame's original pose
-    parser.add_argument("--concat", action=argparse.BooleanOptionalAction, default=True) # concat rendered views into one titled figure (--no-concat to disable)
-    parser.add_argument("--elev", type=float, default=20.0) # elev/azim offset magnitude (degrees) for the sideviews
-
 
     # configs > cmdline > model cfg_args > default
     args = parser.parse_args(sys.argv[1:])
@@ -139,10 +144,7 @@ if __name__ == "__main__":
     modelParam = modelParam.extract(args)
     modelHiddenParam = modelHiddenParam.extract(args)
     pipelineParam = pipelineParam.extract(args)
-
-    # azim/elev offsets applied on top of the frame's original camera pose
-    VIEW_OFFSETS = get_view_offsets(args.elev
-    )
+    sideviewParam = sideviewParam.extract(args)
 
     with torch.no_grad():
         gaussians = GaussianModel(modelParam.sh_degree, modelHiddenParam)
@@ -157,23 +159,31 @@ if __name__ == "__main__":
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
         video_views = scene.getVideoViews()
-        view_offsets = {viewname: VIEW_OFFSETS[viewname] for viewname in args.views}
-        frame_idxs = list(range(0, len(video_views), args.frame_stride)) if args.frame_stride else args.frame_idxs
+        frame_idxs = (
+            list(range(0, len(video_views), int(sideviewParam.frame_stride)))
+            if sideviewParam.frame_stride else sideviewParam.frame_idxs
+        )
 
-        print("Rendering ", args.model_path, f"(frames {frame_idxs}, views: {args.views})")
+        print("Rendering ", args.model_path, f"(frames {frame_idxs}, views: {sideviewParam.views}, elevs: {sideviewParam.elev})")
 
-        for frame_idx in tqdm(frame_idxs, desc="Rendering sideviews"):
-            render_frame_views(
-                modelParam.model_path,
-                scene.loaded_iter,
-                video_views[frame_idx],
-                scene.gaussians,
-                pipelineParam,
-                background,
-                modelParam.no_fine,
-                frame_idx,
-                view_offsets,
-                args.concat,
-            )
+        # loop over elevs on the already-loaded scene, instead of reloading the model once per elev
+        for elev in sideviewParam.elev:
+            all_view_offsets = get_view_offsets(elev)
+            view_offsets = {viewname: all_view_offsets[viewname] for viewname in sideviewParam.views}
+            for frame_idx in tqdm(frame_idxs, desc=f"Rendering sideviews (elev={elev})"):
+                render_frame_views(
+                    modelParam.model_path,
+                    scene.loaded_iter,
+                    video_views[frame_idx],
+                    scene.gaussians,
+                    pipelineParam,
+                    background,
+                    modelParam.no_fine,
+                    frame_idx,
+                    elev,
+                    view_offsets,
+                    sideviewParam.concat,
+                    sideviewParam.save_depth,
+                )
 
     print("\nRendering complete")

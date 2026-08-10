@@ -309,6 +309,7 @@ def scene_reconstruction(
                 scene.gaussians.get_scaling,
                 optimizationParam.anisotropy_ratio_power,
                 optimizationParam.anisotropy_size_power,
+                optimizationParam.anisotropy_ratio_threshold,
             )
 
         loss.backward()

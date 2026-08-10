@@ -26,7 +26,7 @@ from utils.graphics_utils import fov2focal, reconstruct_point_cloud
 from utils.image_utils import write_images, write_video
 
 from argparse import ArgumentParser, BooleanOptionalAction
-from arguments import GroupParams, ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
+from arguments import GroupParams, ModelHiddenParams, ModelParams, PipelineParams, SideviewParams, get_combined_args, merge_hparams
 
 from sideview import render_frame_views, get_view_offsets
 from debugtools.scale_opacity_check import run_scale_opacity_check
@@ -107,15 +107,13 @@ def render_sets(
     modelParam: GroupParams,
     modelHiddenParam: GroupParams,
     pipelineParam: GroupParams,
+    sideviewParam: GroupParams,
     iteration: int,
     skip_train: bool,
     skip_test: bool,
     skip_video: bool,
     reconstruct: bool,
     render_test: bool,
-    frame_idxs, # frames in the video set to render sideviews for
-    frame_stride, # if set, overrides frame_idxs with every Nth frame of the video set
-    elev: float,
     scale_check: bool,
 ):
 
@@ -176,23 +174,29 @@ def render_sets(
             )
 
         video_views = scene.getVideoViews()
-        if frame_stride:
-            frame_idxs = list(range(0, len(video_views), frame_stride))
+        frame_idxs = (
+            list(range(0, len(video_views), int(sideviewParam.frame_stride)))
+            if sideviewParam.frame_stride else sideviewParam.frame_idxs
+        )
         if frame_idxs:
-            view_offsets = get_view_offsets(elev)
-            for frame_idx in frame_idxs:
-                render_frame_views(
-                    modelParam.model_path,
-                    scene.loaded_iter,
-                    video_views[frame_idx],
-                    scene.gaussians,
-                    pipelineParam,
-                    background,
-                    modelParam.no_fine,
-                    frame_idx,
-                    view_offsets,
-                    True, # concat
-                )
+            for elev in sideviewParam.elev:
+                all_view_offsets = get_view_offsets(elev)
+                view_offsets = {viewname: all_view_offsets[viewname] for viewname in sideviewParam.views}
+                for frame_idx in frame_idxs:
+                    render_frame_views(
+                        modelParam.model_path,
+                        scene.loaded_iter,
+                        video_views[frame_idx],
+                        scene.gaussians,
+                        pipelineParam,
+                        background,
+                        modelParam.no_fine,
+                        frame_idx,
+                        elev,
+                        view_offsets,
+                        sideviewParam.concat,
+                        sideviewParam.save_depth,
+                    )
 
 
 if __name__ == "__main__":
@@ -202,10 +206,13 @@ if __name__ == "__main__":
     modelParam = ModelParams()
     pipelineParam = PipelineParams()
     modelHiddenParam = ModelHiddenParams()
+    sideviewParam = SideviewParams()
+    sideviewParam.elev = [10.0]
 
     modelParam.register(parser, set_default_none=True)
     pipelineParam.register(parser)
     modelHiddenParam.register(parser)
+    sideviewParam.register(parser)
 
     parser.add_argument("--configs", type=str)
     parser.add_argument("--iteration", default=-1, type=int) # load iteraton, default -1 -> maximum iteration
@@ -217,10 +224,6 @@ if __name__ == "__main__":
     parser.add_argument("--skip_video", action="store_true") # all Views
     parser.add_argument("--reconstruct", action="store_true") # reconstruct point cloud from RGB-D
     parser.add_argument("--render_test", action="store_true") # test rendering speed on the video set
-
-    parser.add_argument("--frame_idxs", nargs="+", type=int, default=[]) # frames in the video set to render sideviews for
-    parser.add_argument("--frame_stride", type=int, default=None) # if set, render sideviews for every Nth frame of the video set instead of --frame_idxs
-    parser.add_argument("--elev", type=float, default=10.0) # elev/azim offset magnitude (degrees) for the sideviews
     parser.add_argument("--scale_check", action="store_true") # run debugtools/scale_opacity_check.py on the loaded point cloud
 
 
@@ -247,15 +250,13 @@ if __name__ == "__main__":
         modelParam.extract(args),
         modelHiddenParam.extract(args),
         pipelineParam.extract(args),
+        sideviewParam.extract(args),
         args.iteration,
         args.skip_train,
         args.skip_test,
         args.skip_video,
         args.reconstruct,
         args.render_test,
-        args.frame_idxs,
-        args.frame_stride,
-        args.elev,
         args.scale_check,
     )
 

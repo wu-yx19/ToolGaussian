@@ -185,7 +185,7 @@ class OptimizationParams(ParamGroup):
         self.pruning_from_iter = 500 #
         self.pruning_interval = 100 #
         self.prune_size_threshold = 40 # max_radii2D screen-size cutoff during prune
-        self.prune_scale_extent_ratio = 0.1 # scale.max() > ratio * extent -> pruned as floater
+        self.prune_scale_extent_ratio = -1 # was 0.1 -- scale.max() > ratio * extent -> pruned as floater; -1 disables this criterion (suspected cause of sideview holes)
         self.size_prune_grace_period = 500 # iterations after each opacity reset before size-based pruning re-arms
         self.max_prune_fraction = 0.5 # safety cap: prune() falls back to opacity-only if size criteria would remove more than this fraction
         self.sideview_smooth_weight = 0.03 # TV-loss weight on a rendered synthetic side view (train-sideview.py)
@@ -193,11 +193,23 @@ class OptimizationParams(ParamGroup):
         self.sideview_elev = 20 # elevation offset (degrees) used to synthesize the side view (train-sideview.py)
         self.sideview_azims = [0, 90, 180, 270] # azimuth offsets (degrees) sampled from for the side view; -1 = sample uniformly from [0, 360) instead
         self.anisotropy_weight = 0 # penalizes per-gaussian scale max/min ratio via (ratio - 1) ** anisotropy_ratio_power; 0 disables it (train-sideview.py)
-        self.anisotropy_ratio_power = 1.0 # exponent on (ratio - 1); >1 penalizes large anisotropy super-linearly while going easy on mild anisotropy
+        self.anisotropy_ratio_power = 1.0 # exponent on (ratio - 1), or on the hinge excess when anisotropy_ratio_threshold != -1
+        self.anisotropy_ratio_threshold = -1 # -1 -> continuous penalty everywhere; else a squared-hinge with zero penalty at/below this ratio
         self.anisotropy_size_power = 0.5 # penalty is weighted by scaling_max ** this; <1 grows sub-linearly with gaussian size
         self.opacity_threshold_coarse = 0.005 #
         self.opacity_threshold_fine_init = 0.005 #
         self.opacity_threshold_fine_after = 0.005 #
+
+
+class SideviewParams(ParamGroup): # offline side-view rendering (sideview.py)
+    def __init__(self):
+        super().__init__("SideviewParams")
+        self.frame_idxs = [] # indices of the frames to render
+        self.frame_stride = None # if set, render every Nth frame of the video set instead of frame_idxs
+        self.views = ["central", "left", "right", "up", "down"] # one or more views, relative to the frame's original pose
+        self.concat = True # concat rendered views into one titled figure
+        self.save_depth = False # save depth renders alongside color
+        self.elev = [20.0] # one or more elevation offsets (degrees) for the sideviews; each gets its own output subdir
 
 ##
 def get_combined_args(args_cmdline):

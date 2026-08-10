@@ -392,7 +392,10 @@ class GaussianModel:
         prune_mask = opacity_mask
         if max_screen_size:
             big_points_vs = self.max_radii2D > max_screen_size
-            big_points_ws = self.get_scaling.max(dim=1).values > scale_extent_ratio * extent
+            if scale_extent_ratio == -1:
+                big_points_ws = torch.zeros_like(big_points_vs)
+            else:
+                big_points_ws = self.get_scaling.max(dim=1).values > scale_extent_ratio * extent
             candidate_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
 
             prune_fraction = candidate_mask.sum().item() / candidate_mask.numel()

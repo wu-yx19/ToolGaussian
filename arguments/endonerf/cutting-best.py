@@ -12,7 +12,6 @@ OptimizationParams = dict(
     grid_lr_final = 0.000016,
     iterations = 6000,
     percent_dense = 0.01,
-    prune_scale_extent_ratio = 0.5,
     densify_until_iter = 5000,
     position_lr_max_steps = 6000,
     pruning_interval = 100,

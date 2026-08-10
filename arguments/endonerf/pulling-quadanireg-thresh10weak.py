@@ -12,16 +12,17 @@ OptimizationParams = dict(
     grid_lr_final = 0.000016,
     iterations = 6000,
     percent_dense = 0.01,
-    prune_scale_extent_ratio = 0.5,
+    prune_scale_extent_ratio = 5.0,
     densify_until_iter = 5000,
     position_lr_max_steps = 6000,
     pruning_interval = 100,
-    sideview_smooth_weight = 0.1,
+    sideview_smooth_weight = 0.0,
     sideview_reg_interval = 5,   # was 10 -- regularize side views twice as often to fight remaining holes
     sideview_elev = 20,
     sideview_azims = -1,
-    anisotropy_weight = 5e-5,   # was 1e-4 -- power=1.5 grows faster on the tail than power=1, lower weight to compensate
-    anisotropy_ratio_power = 1.5, # was 1.0 -- between the too-gentle linear penalty and the too-strong power=2
+    anisotropy_weight = 5e-6,   # was 5e-5 -- lower threshold penalizes more gaussians, lower weight to compensate
+    anisotropy_ratio_power = 2.0, # quadratic penalty on the hinge excess
+    anisotropy_ratio_threshold = 10.0, # squared-hinge: zero penalty at/below ratio=5
     anisotropy_size_power = 0.5
 )
 
@@ -37,6 +38,7 @@ ModelHiddenParams = dict(
      'input_coordinate_dim': 4,
      'output_coordinate_dim': 64,
      'resolution': [64, 64, 64, 100]
+
     },
     multires = [1, 2, 4, 8],
     defor_depth = 0,

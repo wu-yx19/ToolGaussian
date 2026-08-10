@@ -12,7 +12,6 @@ OptimizationParams = dict(
     grid_lr_final = 0.000016,
     iterations = 6000,
     percent_dense = 0.01,
-    prune_scale_extent_ratio = 0.5,
     densify_until_iter = 5000,
     position_lr_max_steps = 6000,
     pruning_interval = 100,
@@ -24,6 +23,8 @@ OptimizationParams = dict(
     anisotropy_ratio_power = 1.0, # was 2.0 -- back to a linear penalty on (ratio - 1), gentler pull toward isotropy
     anisotropy_size_power = 0.5
 )
+
+# okish, minimal holes
 
 TestEvalParams = dict(
     test_eval_interval = 500,

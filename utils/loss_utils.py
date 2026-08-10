@@ -22,19 +22,26 @@ def TV_loss(x):
     return (tv_h + tv_w) / (B * C * H * W)
 
 
-def anisotropy_loss(scaling, ratio_power=1.0, size_power=1.0):
-    # continuous penalty on per-gaussian max/min scale ratio: (ratio - 1) ** ratio_power,
+def anisotropy_loss(scaling, ratio_power=1.0, size_power=1.0, ratio_threshold=-1):
     # weighted by scaling_max ** size_power (size_power < 1 -> sub-linear growth with size,
     # so small needles are cheap and large ones are not, without dominating other losses).
-    # ratio_power > 1 makes the penalty grow super-linearly with anisotropy, so it stays
-    # negligible near ratio=1 and squashes the far tail hard -- unlike a hinge-at-threshold
-    # loss, this has nonzero gradient everywhere and shrinks the whole distribution instead
-    # of just clipping outliers above a fixed cutoff.
+    # the weight is detached so this loss only pushes on the ratio (shape), never on size itself.
     scaling_max = scaling.max(dim=1).values
     scaling_min = scaling.min(dim=1).values
     ratio = scaling_max / (scaling_min + 1e-8)
-    penalty = (ratio - 1).pow(ratio_power)
-    return (penalty * scaling_max.pow(size_power)).mean()
+    if ratio_threshold == -1:
+        # continuous penalty on per-gaussian max/min scale ratio: (ratio - 1) ** ratio_power.
+        # ratio_power > 1 makes the penalty grow super-linearly with anisotropy, so it stays
+        # negligible near ratio=1 and squashes the far tail hard -- unlike the hinge below,
+        # this has nonzero gradient everywhere and shrinks the whole distribution instead
+        # of just clipping outliers above a fixed cutoff.
+        penalty = (ratio - 1).pow(ratio_power)
+    else:
+        # squared hinge: zero penalty (and zero gradient) at or below the threshold, so
+        # ratios settle uniformly within that range; only the excess above threshold is
+        # squashed, growing smoothly (no gradient kink at the threshold like a linear hinge).
+        penalty = F.relu(ratio - ratio_threshold).pow(ratio_power)
+    return (penalty * scaling_max.detach().pow(size_power)).mean()
 
 
 def lpips_loss(img1, img2, lpips_model):
