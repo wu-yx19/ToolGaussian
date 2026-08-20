@@ -126,7 +126,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     # print("camera center:", viewpoint_camera.camera_center)
     # print("view matrix norm:", viewpoint_camera.world_view_transform.norm())
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
-    rendered_image, radii, depth = rasterizer(
+    rendered_image, radii, depth, alpha = rasterizer(
         means3D = means3D_final,
         means2D = means2D,
         shs = shs,
@@ -140,6 +140,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     # They will be excluded from value updates used in the splitting criteria.
     return {"render": rendered_image,
             "depth": depth,
+            "alpha": alpha, # accumulated per-pixel opacity (1 - transmittance); diagnostic only, no gradient
             "viewspace_points": screenspace_points,
             "visibility_filter" : radii > 0,
             "radii": radii,} # bounding radius

@@ -27,7 +27,7 @@ from tqdm import tqdm
 from utils.general_utils import set_seed, set_seed_train, format_output, training_report
 from utils.graphics_utils import render_training_image, process_view
 from utils.eval_utils import psnr
-from utils.loss_utils import TV_loss, anisotropy_loss, l1_loss, lpips_loss, ssim
+from utils.loss_utils import TV_loss, anisotropy_loss, huber_loss, l1_loss, lpips_loss, ssim
 from utils.time_utils import Timer
 
 from scene import GaussianModel, Scene
@@ -52,7 +52,8 @@ def render_side_view(viewpoint_cam, gaussians, pipelineParam, background, stage,
     distance = float(np.median(valid_depth))
     azim = np.random.uniform(0, 360) if azims == -1 else choice(azims)
     side_cam = process_view(viewpoint_cam, azim, elev, distance)
-    return render(side_cam, gaussians, pipelineParam, background, stage=stage)["render"].unsqueeze(0)
+    side_rendering = render(side_cam, gaussians, pipelineParam, background, stage=stage)
+    return side_rendering["render"].unsqueeze(0), side_rendering["depth"].unsqueeze(0)
 
 
 def evaluate_test_views(
@@ -293,16 +294,22 @@ def scene_reconstruction(
             loss += optimizationParam.lambda_lpips * lpipsloss
 
         if (
-            optimizationParam.sideview_smooth_weight != 0
+            (optimizationParam.sideview_smooth_weight != 0 or optimizationParam.sideview_depth_weight != 0)
             and optimizationParam.sideview_reg_interval > 0
             and iteration % optimizationParam.sideview_reg_interval == 0
         ):
-            side_render = render_side_view(
+            side_render_result = render_side_view(
                 viewpoint_cams[0], scene.gaussians, pipelineParam, background, stage,
                 optimizationParam.sideview_elev, optimizationParam.sideview_azims
             )
-            if side_render is not None:
-                loss += optimizationParam.sideview_smooth_weight * TV_loss(side_render)
+            if side_render_result is not None:
+                side_render, side_depth = side_render_result
+                if optimizationParam.sideview_smooth_weight != 0:
+                    loss += optimizationParam.sideview_smooth_weight * TV_loss(side_render)
+                if optimizationParam.sideview_depth_weight != 0:
+                    loss += optimizationParam.sideview_depth_weight * huber_loss(
+                        side_depth, beta=optimizationParam.sideview_depth_huber_beta
+                    )
 
         if optimizationParam.anisotropy_weight != 0:
             loss += optimizationParam.anisotropy_weight * anisotropy_loss(
@@ -407,29 +414,42 @@ def scene_reconstruction(
             timer.start()
 
             # Densification and pruning
-            if iteration < optimizationParam.densify_until_iter:
-                # Keep track of max radii in image-space for pruning
-                scene.gaussians.max_radii2D[visibility_filter] = torch.max(
-                    scene.gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
-                )
-                scene.gaussians.add_densification_stats(
-                    viewspace_point_tensor_grad, visibility_filter
-                )
+            prune_until_iter = (
+                optimizationParam.densify_until_iter
+                if optimizationParam.prune_until_iter < 0
+                else optimizationParam.prune_until_iter
+            )
+            densify_active = iteration < optimizationParam.densify_until_iter
+            prune_active = iteration < prune_until_iter
 
+            # schedule_iter clamps the fine-stage interpolation at its end-of-densify value
+            # once iteration runs past densify_until_iter (pruning-only extension)
+            if densify_active or prune_active:
+
+                schedule_iter = min(iteration, optimizationParam.densify_until_iter)
                 if stage == "coarse":
                     opacity_threshold = optimizationParam.opacity_threshold_coarse
                     densify_threshold = optimizationParam.densify_grad_threshold_coarse
                 else:
-                    opacity_threshold = optimizationParam.opacity_threshold_fine_init + iteration * (
+                    opacity_threshold = optimizationParam.opacity_threshold_fine_init + schedule_iter * (
                         optimizationParam.opacity_threshold_fine_after
                         - optimizationParam.opacity_threshold_fine_init
                         ) / (optimizationParam.densify_until_iter)
-                    densify_threshold = optimizationParam.densify_grad_threshold_fine_init + iteration * (
+                    densify_threshold = optimizationParam.densify_grad_threshold_fine_init + schedule_iter * (
                             optimizationParam.densify_grad_threshold_after
                             - optimizationParam.densify_grad_threshold_fine_init
                             ) / (optimizationParam.densify_until_iter)
 
-                if (
+                if densify_active:
+                    # Keep track of max radii in image-space for pruning
+                    scene.gaussians.max_radii2D[visibility_filter] = torch.max(
+                        scene.gaussians.max_radii2D[visibility_filter], radii[visibility_filter]
+                    )
+                    scene.gaussians.add_densification_stats(
+                        viewspace_point_tensor_grad, visibility_filter
+                    )
+
+                if densify_active and (
                     iteration > optimizationParam.densify_from_iter
                     and iteration % optimizationParam.densification_interval == 0
                 ):
@@ -441,7 +461,7 @@ def scene_reconstruction(
                     if runtimeParam.log_point_counts:
                         print(f"[ITER {iteration}] points after densify: {scene.gaussians.get_xyz.shape[0]}")
 
-                if (
+                if prune_active and (
                     iteration > optimizationParam.pruning_from_iter
                     and iteration % optimizationParam.pruning_interval == 0
                 ):

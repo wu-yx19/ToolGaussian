@@ -66,6 +66,57 @@ def fov2focal(fov, pixels):
 def focal2fov(focal, pixels):
     return 2*math.atan(pixels/(2*focal))
 
+def unproject_depth(depth, fx, fy, cx, cy):
+    # camera-space Z (z-buffer) depth, per get_pts_cam in scene/datasets.py
+    h, w = depth.shape
+    u, v = np.meshgrid(np.arange(w), np.arange(h))
+    x = (u - cx) / fx * depth
+    y = (v - cy) / fy * depth
+    return np.stack([x, y, depth], axis=-1)  # HxWx3, camera space
+
+def warp_view(image, depth, src_R, src_T, tgt_R, tgt_T, fovx, fovy, width, height):
+    # forward-warps image/depth (captured by the src camera) into the tgt camera's view via
+    # a z-buffered point splat. src and tgt are assumed to share intrinsics (fovx, fovy, width, height),
+    # which holds for any pair of views produced by process_view (it only ever changes R/T).
+    fx, fy = fov2focal(fovx, width), fov2focal(fovy, height)
+    cx, cy = width / 2, height / 2
+    src_R, src_T, tgt_R, tgt_T = np.asarray(src_R), np.asarray(src_T), np.asarray(tgt_R), np.asarray(tgt_T)
+
+    valid = depth > 0
+    pts_src = unproject_depth(depth, fx, fy, cx, cy)[valid]
+    colors = image[valid]
+
+    # Convention (getWorld2View2 above): P_cam_col = R.T @ P_world_col + T, so for row-vector
+    # points: P_world_row = (P_cam_row - T_row) @ R.T, and P_cam_row = P_world_row @ R + T_row.
+    pts_world = (pts_src - src_T) @ src_R.T
+    pts_tgt = pts_world @ tgt_R + tgt_T
+
+    in_front = pts_tgt[:, 2] > 0
+    pts_tgt = pts_tgt[in_front]
+    colors = colors[in_front]
+
+    u_tgt = fx * pts_tgt[:, 0] / pts_tgt[:, 2] + cx
+    v_tgt = fy * pts_tgt[:, 1] / pts_tgt[:, 2] + cy
+    u_tgt_i = np.round(u_tgt).astype(np.int64)
+    v_tgt_i = np.round(v_tgt).astype(np.int64)
+
+    in_bounds = (u_tgt_i >= 0) & (u_tgt_i < width) & (v_tgt_i >= 0) & (v_tgt_i < height)
+    u_tgt_i, v_tgt_i = u_tgt_i[in_bounds], v_tgt_i[in_bounds]
+    z_tgt = pts_tgt[in_bounds, 2]
+    colors = colors[in_bounds]
+
+    warped = np.zeros((height, width, image.shape[2]), dtype=image.dtype)
+    mask = np.zeros((height, width), dtype=bool)
+
+    # fancy-index assignment keeps the LAST write for duplicate (v, u) indices, so sorting
+    # far-to-near and assigning once gives z-buffer "nearest wins" semantics without a python loop
+    order = np.argsort(-z_tgt)
+    v_sorted, u_sorted = v_tgt_i[order], u_tgt_i[order]
+    warped[v_sorted, u_sorted] = colors[order]
+    mask[v_sorted, u_sorted] = True
+
+    return warped, mask
+
 def fetchPly(path):
     plydata = PlyData.read(path)
     vertices = plydata['vertex']

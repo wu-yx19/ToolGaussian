@@ -194,8 +194,7 @@ def render_sets(
                         frame_idx,
                         elev,
                         view_offsets,
-                        sideviewParam.concat,
-                        sideviewParam.save_depth,
+                        sideviewParam,
                     )
 
 
@@ -210,8 +209,12 @@ if __name__ == "__main__":
     sideviewParam.elev = [10.0]
 
     modelParam.register(parser, set_default_none=True)
-    pipelineParam.register(parser)
-    modelHiddenParam.register(parser)
+    # set_default_none=True here too: without it, get_combined_args only lets a saved cfg_args
+    # value through when the cmdline value is None -- since these fields always get concrete
+    # argparse defaults otherwise, the actual trained architecture/pipeline settings get silently
+    # replaced by defaults for any checkpoint lacking a matching arguments/<expname>.py override
+    pipelineParam.register(parser, set_default_none=True)
+    modelHiddenParam.register(parser, set_default_none=True)
     sideviewParam.register(parser)
 
     parser.add_argument("--configs", type=str)
@@ -229,16 +232,23 @@ if __name__ == "__main__":
 
     # configs > cmdline > model cfg_args > default
     args = parser.parse_args(sys.argv[1:])
+    configs_auto_derived = False
     if args.expname:
         if not args.model_path:
             args.model_path = os.path.join("./output/", args.expname)
         if not args.configs:
             args.configs = os.path.join("./arguments/", args.expname + ".py")
+            configs_auto_derived = True
     args = get_combined_args(args) # read modelpath args, overwrite with cmdline
-    if args.configs: # overwrite with configs
+    if args.configs and (not configs_auto_derived or os.path.isfile(args.configs)):
+        # overwrite with configs -- but an auto-derived --configs (from --expname) is a guess,
+        # not a user request, so a missing file there just means "no override, use cfg_args
+        # alone" instead of a crash; an explicitly-passed --configs that's missing still errors
         import mmcv
         config = mmcv.Config.fromfile(args.configs)
         args = merge_hparams(args, config)
+    elif configs_auto_derived:
+        print(f"No config file at {args.configs} for --expname {args.expname}; using only the saved cfg_args (no --configs overrides applied)")
 
     format_output(args.quiet)
     set_seed(0) # Initialize random seed

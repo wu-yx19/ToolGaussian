@@ -15,7 +15,7 @@ IMAGE_PATH="/home/groups/bdaniel/wyx/docker/endo_env_new.sif"
 PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/ToolGaussian"
 
 GPU_LOG="$PROJECT_DIR/logs/${SLURM_JOB_ID}_gpu.log"
-FILE_NAME="endonerf/cutting"
+FILE_NAME="${1:-endonerf/cutting}"
 
 echo "Working Directory: $PROJECT_DIR"
 echo "Starting Training at: $(date)"
@@ -30,8 +30,7 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
 
     GPU_MONITOR_PID=\$!
 
-    python render.py --model_path output/$FILE_NAME \
-    --configs arguments/$FILE_NAME.py
+    python render.py --expname $FILE_NAME
 
     echo "Stop GPU logging"
     kill \$GPU_MONITOR_PID

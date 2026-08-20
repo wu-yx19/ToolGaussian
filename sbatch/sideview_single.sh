@@ -4,7 +4,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mem=8G
-#SBATCH --time=0:07:00
+#SBATCH --time=0:05:00
 #SBATCH --output=logs/%j_sideview.log
 #SBATCH --error=logs/%j_error.log
 
@@ -30,9 +30,7 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
 
     GPU_MONITOR_PID=\$!
 
-    # single sideview.py invocation loads the model once and loops over all three
-    # elevations internally, instead of reloading it per elev
-    python sideview.py --expname $EXPNAME --elev 10 20 30 --frame_stride 20 --save_depth
+    python sideview.py --expname $EXPNAME --elev 10 20 30 --frame_stride 20
 
     echo "Stop GPU logging"
     kill \$GPU_MONITOR_PID

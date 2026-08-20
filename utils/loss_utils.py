@@ -22,6 +22,21 @@ def TV_loss(x):
     return (tv_h + tv_w) / (B * C * H * W)
 
 
+def huber_loss(x, beta=0.05):
+    # Huber analogue of TV_loss: same gradient-vs-zero penalty, but quadratic below `beta`
+    # and linear above it, so real discontinuities (tissue folds, floater edges) aren't
+    # over-penalized the way a pure L2 smoothness term would. Drop-in for TV_loss on any
+    # single tensor (color or depth).
+    # pass the shifted slices directly as (input, target) -- smooth_l1_loss/l1_loss already
+    # compute |input - target| internally, so subtracting first and comparing to zero would
+    # just be a redundant extra subtraction and allocation
+    if beta == 0:
+        # Huber degenerates to L1 as beta -> 0; special-cased rather than passed through to
+        # smooth_l1_loss, whose quadratic branch divides by beta (would be 0/0 at beta=0)
+        return F.l1_loss(x[:, :, 1:, :], x[:, :, :-1, :]) + F.l1_loss(x[:, :, :, 1:], x[:, :, :, :-1])
+    return F.smooth_l1_loss(x[:, :, 1:, :], x[:, :, :-1, :], beta=beta) + F.smooth_l1_loss(x[:, :, :, 1:], x[:, :, :, :-1], beta=beta)
+
+
 def anisotropy_loss(scaling, ratio_power=1.0, size_power=1.0, ratio_threshold=-1):
     # weighted by scaling_max ** size_power (size_power < 1 -> sub-linear growth with size,
     # so small needles are cheap and large ones are not, without dominating other losses).

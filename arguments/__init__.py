@@ -184,11 +184,14 @@ class OptimizationParams(ParamGroup):
         self.densify_grad_threshold_after = 0.0002 #
         self.pruning_from_iter = 500 #
         self.pruning_interval = 100 #
+        self.prune_until_iter = -1 # iteration after which pruning stops; -1 -> same as densify_until_iter (default, backward compatible)
         self.prune_size_threshold = 40 # max_radii2D screen-size cutoff during prune
         self.prune_scale_extent_ratio = -1 # was 0.1 -- scale.max() > ratio * extent -> pruned as floater; -1 disables this criterion (suspected cause of sideview holes)
         self.size_prune_grace_period = 500 # iterations after each opacity reset before size-based pruning re-arms
         self.max_prune_fraction = 0.5 # safety cap: prune() falls back to opacity-only if size criteria would remove more than this fraction
         self.sideview_smooth_weight = 0.03 # TV-loss weight on a rendered synthetic side view (train-sideview.py)
+        self.sideview_depth_weight = 0 # huber-loss weight on the depth of that same side view; 0 disables it
+        self.sideview_depth_huber_beta = 1.0 # huber transition point (depth units): quadratic below, linear above -- p99 of neighbor depth differences on cutting's GT depth is ~1.0, see debugtools/depth_check.py
         self.sideview_reg_interval = -1 # render+regularize a side view every N iterations; -1 disables it
         self.sideview_elev = 20 # elevation offset (degrees) used to synthesize the side view (train-sideview.py)
         self.sideview_azims = [0, 90, 180, 270] # azimuth offsets (degrees) sampled from for the side view; -1 = sample uniformly from [0, 360) instead
@@ -205,10 +208,20 @@ class SideviewParams(ParamGroup): # offline side-view rendering (sideview.py)
     def __init__(self):
         super().__init__("SideviewParams")
         self.frame_idxs = [] # indices of the frames to render
-        self.frame_stride = None # if set, render every Nth frame of the video set instead of frame_idxs
+        self.frame_stride = 0 # if set (nonzero), render every Nth frame of the video set instead of frame_idxs
+        # 0, not None: get_combined_args only keeps a cmdline value when it's not None, otherwise falling
+        # back to the model's saved cfg_args -- which never has this sideview-only key, so a None default
+        # here would make the attribute vanish entirely (AttributeError) whenever --frame_stride is omitted
         self.views = ["central", "left", "right", "up", "down"] # one or more views, relative to the frame's original pose
         self.concat = True # concat rendered views into one titled figure
         self.save_depth = False # save depth renders alongside color
+        self.save_opacity = True # save accumulated-opacity (alpha) renders alongside color
+        self.save_meta = False # save raw float depth (.npy) + camera metadata (.json) alongside depth renders, for tools (e.g. warpback.py) that need to reproject a sideview back; requires --save_depth
+        self.warp_mode = "off" # for each offset view, also forward-warp a source image+depth into that offset camera pose, to compare against the actual render. one of:
+        #   off      -- don't warp
+        #   gt       -- ground-truth image+depth; tool-masked pixels (view.mask == 0) are left invalid (missing GT depth there)
+        #   gt_fill  -- ground truth, with tool-masked pixels filled in from the model's own render at the original pose
+        #   render   -- the model's own render at the original pose, everywhere (no ground truth used)
         self.elev = [20.0] # one or more elevation offsets (degrees) for the sideviews; each gets its own output subdir
 
 ##
@@ -235,7 +248,7 @@ def get_combined_args(args_cmdline):
 
 
 def merge_hparams(args, config):
-    params = ["OptimizationParams", "ModelHiddenParams", "ModelParams", "PipelineParams", "TestEvalParams", "RuntimeParams"]
+    params = ["OptimizationParams", "ModelHiddenParams", "ModelParams", "PipelineParams", "TestEvalParams", "RuntimeParams", "SideviewParams"]
     for param in params:
         if param in config.keys():
             for key, value in config[param].items():
