@@ -15,10 +15,16 @@ PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/ToolGaussian"
 
 GPU_LOG="$PROJECT_DIR/logs/${SLURM_JOB_ID}_gpu.log"
 EXPNAME="${1:-endonerf/pulling}"
-ELEV="${2:-20}"
+ELEV="${2:-5 10 15 20 30 45}"
+SIDEVIEW_ON_TEST="${3:-}"           # pass 1 to render on the held-out test views instead of every Nth video frame
+SIDEVIEW_ON_TEST_FLAG=""
+if [ "$SIDEVIEW_ON_TEST" = "1" ]; then
+    SIDEVIEW_ON_TEST_FLAG="--sideview_on_test"
+fi
 
 echo "Working Directory: $PROJECT_DIR"
 echo "Expname: $EXPNAME"
+echo "Sideview on test: $SIDEVIEW_ON_TEST"
 echo "Starting Sideview + Warpback at: $(date)"
 
 apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
@@ -33,16 +39,16 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
     GPU_MONITOR_PID=\$!
 
     # --save_depth saves the rendered depth; --save_meta additionally writes the raw depth
-    # (.npy) + camera params (.json) the standalone warpback.py / warpback_gt_compare.py
+    # (.npy) + camera params (.json) the standalone warp_to_source.py / score_against_gt.py
     # tools need for their own post-hoc warp-back pass (no need for --warp_mode here)
     echo "Rendering sideviews: \$(date)"
-    python sideview.py --expname $EXPNAME --save_depth --save_meta --frame_stride 20 --elev $ELEV
+    python sideview.py --expname $EXPNAME --save_depth --save_meta --frame_stride 20 --elev $ELEV $SIDEVIEW_ON_TEST_FLAG
 
     echo "Warping back to original view: \$(date)"
-    python warpback.py --expname $EXPNAME --elev $ELEV
+    python warp_to_source.py --expname $EXPNAME --elev $ELEV
 
     echo "Comparing warpback vs ground truth: \$(date)"
-    python warpback_gt_compare.py --expname $EXPNAME --elev $ELEV
+    python score_against_gt.py --expname $EXPNAME --elev $ELEV
 
     echo "Stop GPU logging"
     kill \$GPU_MONITOR_PID

@@ -1,5 +1,5 @@
 #
-# warpback.py
+# warp_to_source.py
 #
 # Batch tool: given an expname and one or more elevs, warp every view's render
 # (at every frame found) back into the frame's original camera via
@@ -15,8 +15,8 @@
 # node.
 #
 # Usage:
-#   python warpback.py --expname endonerf/pulling --elev 10 20 30
-#   python warpback.py --expname endonerf/pulling --iteration 6000 --elev 20
+#   python warp_to_source.py --expname endonerf/pulling --elev 10 20 30
+#   python warp_to_source.py --expname endonerf/pulling --iteration 6000 --elev 20
 #
 
 import os

@@ -150,24 +150,26 @@ def concat_with_title(images, title, path):
     figure = np.concatenate([title_bar, row], axis=0)
     cv2.imwrite(path, figure)
 
-def write_images(name : str, images, path):
-    count = 0
+def write_images(name : str, images, path, frame_idxs=None):
+    # frame_idxs: true frame index per image (e.g. view.uid), so filenames mean the same thing
+    # across train/test/video -- without it, images are just numbered 0,1,2,... in list order,
+    # which only happens to equal the true frame number for the video split (every frame, in
+    # order); train/test are sparse subsets, so their sequential position is NOT the true frame
     print("writing {} images.".format(name))
-    if len(images) != 0:
-        for image in tqdm(images):
-            match name:
-                case "mask":
-                    image = image.float()
-                    torchvision.utils.save_image(image, os.path.join(path, "{0:05d}".format(count) + ".png"))
-                case "rendered depth":
-                    image = np.clip(image.cpu().squeeze().numpy().astype(np.uint8), 0, 255)
-                    cv2.imwrite(os.path.join(path, "{0:05d}".format(count) + ".png"), image)
-                case "ground truth depth":
-                    image = image.cpu().squeeze().numpy().astype(np.uint8)
-                    cv2.imwrite(os.path.join(path, "{0:05d}".format(count) + ".png"), image)
-                case _:
-                    torchvision.utils.save_image(image, os.path.join(path, "{0:05d}".format(count) + ".png"))
-            count += 1
+    for count, image in enumerate(tqdm(images)):
+        idx = frame_idxs[count] if frame_idxs is not None else count
+        match name:
+            case "mask":
+                image = image.float()
+                torchvision.utils.save_image(image, os.path.join(path, "{0:05d}".format(idx) + ".png"))
+            case "rendered depth":
+                image = np.clip(image.cpu().squeeze().numpy().astype(np.uint8), 0, 255)
+                cv2.imwrite(os.path.join(path, "{0:05d}".format(idx) + ".png"), image)
+            case "ground truth depth":
+                image = image.cpu().squeeze().numpy().astype(np.uint8)
+                cv2.imwrite(os.path.join(path, "{0:05d}".format(idx) + ".png"), image)
+            case _:
+                torchvision.utils.save_image(image, os.path.join(path, "{0:05d}".format(idx) + ".png"))
 
 def write_video(images, path):
     render_array = torch.stack(images, dim=0).permute(0, 2, 3, 1)

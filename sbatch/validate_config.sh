@@ -10,4 +10,4 @@
 IMAGE_PATH="/home/groups/bdaniel/wyx/docker/endo_env_new.sif"
 PROJECT_DIR="/home/groups/bdaniel/wyx/Projects/ToolGaussian"
 
-apptainer exec $IMAGE_PATH /bin/bash -c "cd $PROJECT_DIR && PYTHONPATH=$PROJECT_DIR python3 debugtools/validate_sidereg_config.py ${1:-arguments/endonerf/cutting-sidereg.py}"
+apptainer exec $IMAGE_PATH /bin/bash -c "cd $PROJECT_DIR && PYTHONPATH=$PROJECT_DIR python3 debugtools/validate_sidereg_config.py ${1:-arguments/endonerf/cutting-sidereg.py} ${2:-cutting}"

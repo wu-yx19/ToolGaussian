@@ -144,7 +144,7 @@ def render_frame_views(
 
             if sideviewParam.save_meta:
                 # raw z-buffer depth (float32) + the exact camera params used, so tools like
-                # warpback.py can reproject this render without relying on the lossy 8-bit
+                # warp_to_source.py can reproject this render without relying on the lossy 8-bit
                 # visualization PNG or on re-deriving azim/elev/dist from rounded filenames
                 np.save(os.path.join(depth_path, f"depth_{suffix}.npy"), raw_depth)
                 metadata = {
@@ -285,23 +285,31 @@ if __name__ == "__main__":
         if sideviewParam.frame_stride and "--frame_idxs" in sys.argv:
             print("Warning: --frame_stride and --frame_idxs both given; --frame_stride takes precedence, --frame_idxs is ignored")
 
-        video_views = scene.getVideoViews()
-        frame_idxs = (
-            list(range(0, len(video_views), int(sideviewParam.frame_stride)))
-            if sideviewParam.frame_stride else sideviewParam.frame_idxs
-        )
+        if sideviewParam.sideview_on_test:
+            # view.uid is the frame's true index in the full sequence (set at dataset-load
+            # time), which still matches the video set's own gt/masks output naming (the
+            # video split covers every frame in order), so score_against_gt.py's GT
+            # lookup by frame_idx keeps working even though frames now come from the test split
+            frame_views = [(view.uid, view) for view in scene.getTestViews()]
+        else:
+            video_views = scene.getVideoViews()
+            frame_idxs = (
+                list(range(0, len(video_views), int(sideviewParam.frame_stride)))
+                if sideviewParam.frame_stride else sideviewParam.frame_idxs
+            )
+            frame_views = [(frame_idx, video_views[frame_idx]) for frame_idx in frame_idxs]
 
-        print("Rendering ", args.model_path, f"(frames {frame_idxs}, views: {sideviewParam.views}, elevs: {sideviewParam.elev})")
+        print("Rendering ", args.model_path, f"(frames {[f for f, _ in frame_views]}, views: {sideviewParam.views}, elevs: {sideviewParam.elev})")
 
         # loop over elevs on the already-loaded scene, instead of reloading the model once per elev
         for elev in sideviewParam.elev:
             all_view_offsets = get_view_offsets(elev)
             view_offsets = {viewname: all_view_offsets[viewname] for viewname in sideviewParam.views}
-            for frame_idx in tqdm(frame_idxs, desc=f"Rendering sideviews (elev={elev})"):
+            for frame_idx, view in tqdm(frame_views, desc=f"Rendering sideviews (elev={elev})"):
                 render_frame_views(
                     modelParam.model_path,
                     scene.loaded_iter,
-                    video_views[frame_idx],
+                    view,
                     scene.gaussians,
                     pipelineParam,
                     background,

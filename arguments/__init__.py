@@ -212,17 +212,18 @@ class SideviewParams(ParamGroup): # offline side-view rendering (sideview.py)
         # 0, not None: get_combined_args only keeps a cmdline value when it's not None, otherwise falling
         # back to the model's saved cfg_args -- which never has this sideview-only key, so a None default
         # here would make the attribute vanish entirely (AttributeError) whenever --frame_stride is omitted
+        self.sideview_on_test = False # if True, render sideviews on the held-out test views instead of using frame_idxs/frame_stride on the video set
         self.views = ["central", "left", "right", "up", "down"] # one or more views, relative to the frame's original pose
         self.concat = True # concat rendered views into one titled figure
         self.save_depth = False # save depth renders alongside color
         self.save_opacity = True # save accumulated-opacity (alpha) renders alongside color
-        self.save_meta = False # save raw float depth (.npy) + camera metadata (.json) alongside depth renders, for tools (e.g. warpback.py) that need to reproject a sideview back; requires --save_depth
+        self.save_meta = False # save raw float depth (.npy) + camera metadata (.json) alongside depth renders, for tools (e.g. warp_to_source.py) that need to reproject a sideview back; requires --save_depth
         self.warp_mode = "off" # for each offset view, also forward-warp a source image+depth into that offset camera pose, to compare against the actual render. one of:
         #   off      -- don't warp
         #   gt       -- ground-truth image+depth; tool-masked pixels (view.mask == 0) are left invalid (missing GT depth there)
         #   gt_fill  -- ground truth, with tool-masked pixels filled in from the model's own render at the original pose
         #   render   -- the model's own render at the original pose, everywhere (no ground truth used)
-        self.elev = [20.0] # one or more elevation offsets (degrees) for the sideviews; each gets its own output subdir
+        self.elev = [5.0, 10.0, 15.0, 20.0, 30.0, 45.0] # one or more elevation offsets (degrees) for the sideviews; each gets its own output subdir
 
 ##
 def get_combined_args(args_cmdline):

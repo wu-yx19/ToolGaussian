@@ -87,11 +87,15 @@ def render_set(
         time2 = time()
         print("FPS:", (len(views) - 1) * test_times / (time2 - time1))
 
-    write_images("rendered", render_images, image_path)
-    write_images("rendered depth", render_depths, depth_path)
-    write_images("ground truth", gt_images, gtimage_path)
-    write_images("ground truth depth", gt_depths, gtdepth_path)
-    write_images("mask", masks, mask_path)
+    # true frame index per view, not list position -- train/test are sparse subsets of the
+    # full sequence, so their position in `views` does not equal the true frame number
+    frame_idxs = [view.uid for view in views]
+
+    write_images("rendered", render_images, image_path, frame_idxs)
+    write_images("rendered depth", render_depths, depth_path, frame_idxs)
+    write_images("ground truth", gt_images, gtimage_path, frame_idxs)
+    write_images("ground truth depth", gt_depths, gtdepth_path, frame_idxs)
+    write_images("mask", masks, mask_path, frame_idxs)
 
     write_video(render_images, os.path.join(model_path, name, "ours_{}".format(iteration), "ours_video.mp4"))
     write_video(gt_images, os.path.join(model_path, name, "ours_{}".format(iteration), "gt_video.mp4"))
@@ -173,20 +177,29 @@ def render_sets(
                 reconstruct=reconstruct,
             )
 
-        video_views = scene.getVideoViews()
-        frame_idxs = (
-            list(range(0, len(video_views), int(sideviewParam.frame_stride)))
-            if sideviewParam.frame_stride else sideviewParam.frame_idxs
-        )
-        if frame_idxs:
+        if sideviewParam.sideview_on_test:
+            # view.uid is the frame's true index in the full sequence (set at dataset-load
+            # time), which still matches the video set's own gt/masks output naming (the
+            # video split covers every frame in order), so score_against_gt.py's GT
+            # lookup by frame_idx keeps working even though frames now come from the test split
+            frame_views = [(view.uid, view) for view in scene.getTestViews()]
+        else:
+            video_views = scene.getVideoViews()
+            frame_idxs = (
+                list(range(0, len(video_views), int(sideviewParam.frame_stride)))
+                if sideviewParam.frame_stride else sideviewParam.frame_idxs
+            )
+            frame_views = [(frame_idx, video_views[frame_idx]) for frame_idx in frame_idxs]
+
+        if frame_views:
             for elev in sideviewParam.elev:
                 all_view_offsets = get_view_offsets(elev)
                 view_offsets = {viewname: all_view_offsets[viewname] for viewname in sideviewParam.views}
-                for frame_idx in frame_idxs:
+                for frame_idx, view in frame_views:
                     render_frame_views(
                         modelParam.model_path,
                         scene.loaded_iter,
-                        video_views[frame_idx],
+                        view,
                         scene.gaussians,
                         pipelineParam,
                         background,

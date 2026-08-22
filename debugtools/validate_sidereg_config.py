@@ -9,8 +9,11 @@ from arguments import (
     TestEvalParams, SideviewParams, RuntimeParams, merge_hparams,
 )
 
-with open("output/endonerf/cutting/cfg_args") as f:
-    cutting_ns = eval(f.read().strip(), {"Namespace": Namespace})
+config_path = sys.argv[1] if len(sys.argv) > 1 else "arguments/endonerf/cutting-sidereg.py"
+baseline_exp = sys.argv[2] if len(sys.argv) > 2 else "cutting"
+
+with open(f"output/endonerf/{baseline_exp}/cfg_args") as f:
+    baseline_ns = eval(f.read().strip(), {"Namespace": Namespace})
 
 parser = ArgumentParser()
 for grp in [ModelParams(), OptimizationParams(), PipelineParams(), ModelHiddenParams(),
@@ -18,24 +21,23 @@ for grp in [ModelParams(), OptimizationParams(), PipelineParams(), ModelHiddenPa
     grp.register(parser)
 defaults_args = parser.parse_args([])
 
-config_path = sys.argv[1] if len(sys.argv) > 1 else "arguments/endonerf/cutting-sidereg.py"
 cfg = mmcv.Config.fromfile(config_path)
 merged = merge_hparams(defaults_args, cfg)
 
 merged_d = vars(merged)
-cutting_d = vars(cutting_ns)
+baseline_d = vars(baseline_ns)
 skip = {"model_path", "expname", "configs", "port", "source_path"}
 diffs = []
-for k in cutting_d:
+for k in baseline_d:
     if k in skip:
         continue
     mv = merged_d.get(k, "<MISSING>")
-    cv = cutting_d[k]
-    if mv != cv:
-        diffs.append((k, cv, mv))
+    bv = baseline_d[k]
+    if mv != bv:
+        diffs.append((k, bv, mv))
 
-print(f"DIFFS between cutting's real cfg_args and {config_path} merged onto current defaults:")
-for k, cv, mv in diffs:
-    print(f"  {k}: cutting={cv!r}  new={mv!r}")
+print(f"DIFFS between {baseline_exp}'s real cfg_args and {config_path} merged onto current defaults:")
+for k, bv, mv in diffs:
+    print(f"  {k}: {baseline_exp}={bv!r}  new={mv!r}")
 if not diffs:
     print("  (none)")

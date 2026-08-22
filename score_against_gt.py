@@ -1,7 +1,7 @@
 #
-# warpback_gt_compare.py
+# score_against_gt.py
 #
-# Compare warpback.py's outputs (a render warped back to its original camera)
+# Compare warp_to_source.py's outputs (a render warped back to its original camera)
 # against the frame's actual ground-truth image, restricted to pixels valid for
 # BOTH: the warp's own coverage mask (warpback_*_mask.png) and the tool mask --
 # GT under the tool is unreliable/excluded throughout this codebase (see
@@ -19,7 +19,7 @@
 # renders train/test/video by default) for this expname/iteration at least once.
 #
 # Usage:
-#   python warpback_gt_compare.py --expname endonerf/pulling --elev 20
+#   python score_against_gt.py --expname endonerf/pulling --elev 20
 #
 
 import os
@@ -32,7 +32,7 @@ import numpy as np
 import cv2
 
 from utils.image_utils import sideview_view_elevs, masked_ssim_map, masked_psnr
-from warpback import resolve_iteration
+from warp_to_source import resolve_iteration
 
 
 def default_mask_path(warpback_path):
@@ -54,7 +54,7 @@ def find_warpback_files(warpback_dir, view_name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Compare warpback.py outputs against ground truth, over pixels valid for both the warp and the tool mask")
+    parser = argparse.ArgumentParser(description="Compare warp_to_source.py outputs against ground truth, over pixels valid for both the warp and the tool mask")
     parser.add_argument("--expname", required=True, type=str, help="e.g. endonerf/pulling -> output/endonerf/pulling")
     parser.add_argument("--iteration", type=int, default=None, help="the ours_<iteration> checkpoint (auto-detected if there's only one; must have been rendered by both sideview.py and render.py)")
     parser.add_argument("--elev", required=True, type=float, nargs="+", help="one or more elevations to process")

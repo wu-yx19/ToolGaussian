@@ -10,9 +10,9 @@
 
 # Pure numpy/cv2 (no CUDA needed), unlike warpback_single.sh -- runs on a CPU
 # partition instead of requesting a GPU node it wouldn't use. Requires sideview.py
-# (--save_depth --save_meta) and warpback.py to have already been run for this
+# (--save_depth --save_meta) and warp_to_source.py to have already been run for this
 # expname/elev, and render.py to have been run at least once (for its gt/masks
-# output warpback_gt_compare.py reads).
+# output score_against_gt.py reads).
 
 mkdir -p logs
 
@@ -31,7 +31,7 @@ apptainer exec $IMAGE_PATH /bin/bash << EOF
     cd $PROJECT_DIR
 
     echo "Comparing warpback vs ground truth: \$(date)"
-    python warpback_gt_compare.py --expname $EXPNAME --elev $ELEV
+    python score_against_gt.py --expname $EXPNAME --elev $ELEV
 EOF
 
 echo "Finished at: $(date)"
