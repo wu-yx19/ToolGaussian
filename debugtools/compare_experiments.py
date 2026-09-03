@@ -126,31 +126,39 @@ def significance_stars(p):
     return "ns"
 
 
+FONT_SIZES = {"axes.labelsize": 15, "axes.titlesize": 16, "xtick.labelsize": 13, "ytick.labelsize": 13, "legend.fontsize": 12, "legend.title_fontsize": 13}
+
+
 def main():
-    parser = ArgumentParser(description="Bar-plot RTVC (warp-to-source) PSNR/SSIM per elevation for two experiments, with a paired t-test per elev")
-    parser.add_argument("--exp1", required=True, type=str, help="e.g. endonerf/cutting (baseline)")
-    parser.add_argument("--exp2", required=True, type=str, help="e.g. endonerf/cutting-depthreg (candidate)")
+    parser = ArgumentParser(description="Bar-plot RTVC (warp-to-source) PSNR/SSIM per elevation for two experiments, with a paired t-test per elev -- same visual style as offtrajectory_ablation_plot.py")
+    parser.add_argument("--exp1", required=True, type=str, help="e.g. endonerf/cutting-noaniso-nodepth (baseline)")
+    parser.add_argument("--exp2", required=True, type=str, help="e.g. endonerf/cutting-depthreg-aniso1e5-depth002 (candidate)")
+    parser.add_argument("--exp1_label", default="Baseline")
+    parser.add_argument("--exp2_label", default="OffTrackGS (Ours)")
     parser.add_argument("--elev", nargs="+", type=float, default=[5, 10, 15, 20, 30, 45])
     parser.add_argument("--views", nargs="+", default=["left", "right", "up", "down"], help="views to average over (excludes central by default)")
     parser.add_argument("--iteration1", type=int, default=None)
     parser.add_argument("--iteration2", type=int, default=None)
     parser.add_argument("--pool_views", action="store_true", help="t-test/plot over all (view, frame) pairs directly (e.g. 4x20=80 samples/elev) instead of averaging the views per frame first (20 samples/elev, default) -- pooling pseudo-replicates since a frame's 4 offset views aren't independent, so it's more powerful but overstates significance")
+    parser.add_argument("--seq_label", default=None, help="optional sequence name shown vertically on the left, e.g. Cutting")
     parser.add_argument("--out_dir", default=None, help="default: output/<exp2> (the candidate experiment's own folder)")
     args = parser.parse_args()
     if args.out_dir is None:
         args.out_dir = os.path.join("output", args.exp2)
 
-    # "original" (the real, un-warped test-view render vs GT, from evaluate.py's per_view.json)
+    plt.rcParams.update(FONT_SIZES)
+
+    # "orig" (the real, un-warped test-view render vs GT, from evaluate.py's per_view.json)
     # goes first, alongside the sideview elevations. Its n is ~4x smaller than each sideview
     # elev's, since sideview aggregates 4 offset views x N frames while original is just N frames.
-    groups = [("orig", None)] + [(f"{e:.0f}", e) for e in args.elev]
+    groups = [("0", None)] + [(f"{e:.0f}", e) for e in args.elev]
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(9, 4))
 
     for ax, metric in zip(axes, ["psnr", "ssim"]):
         rows = []
         print(f"\n{metric}")
-        print(f"{'group':6s} {'n_pairs':8s} {args.exp1 + ' mean':>16s} {args.exp2 + ' mean':>16s} {'t-stat':>8s} {'p-value':>10s} {'sig':>4s}")
+        print(f"{'group':6s} {'n_pairs':8s} {args.exp1_label + ' mean':>16s} {args.exp2_label + ' mean':>16s} {'t-stat':>8s} {'p-value':>10s} {'sig':>4s}")
         annotations = {}
         for label, elev in groups:
             if elev is None:
@@ -164,10 +172,10 @@ def main():
                 r2 = average_per_frame(r2)
             for k, v in r1.items():
                 if v.get(metric) is not None:
-                    rows.append({"group": label, "value": v[metric], "experiment": args.exp1})
+                    rows.append({"group": label, "value": v[metric], "Config": args.exp1_label})
             for k, v in r2.items():
                 if v.get(metric) is not None:
-                    rows.append({"group": label, "value": v[metric], "experiment": args.exp2})
+                    rows.append({"group": label, "value": v[metric], "Config": args.exp2_label})
 
             a, b = paired_values(r1, r2, metric)
             if len(a) >= 2:
@@ -179,26 +187,25 @@ def main():
 
         df = pd.DataFrame(rows)
         group_order = [label for label, _ in groups if label in set(df["group"])]
-        sns.barplot(data=df, x="group", y="value", hue="experiment", order=group_order, errorbar="sd", ax=ax)
-        ax.set_xlabel("Elevation (deg); \"orig\" = real test view, no warp")
-        ax.set_ylabel(metric)
-        ax.set_title(metric)
+        palette = {args.exp2_label: "tab:blue", args.exp1_label: "tab:red"}
+        sns.barplot(data=df, x="group", y="value", hue="Config", hue_order=[args.exp2_label, args.exp1_label], palette=palette, order=group_order, errorbar="sd", ax=ax, legend=(metric == "psnr"))
+        ax.set_title(metric.upper())
+        ax.set_xlabel("Elevation (deg)")
+        ax.set_ylabel("")
+        ax.set_ylim(10, 40) if metric == "psnr" else ax.set_ylim(0.0, 1.0)
+        ax.grid(alpha=0.3)
         bottom, top = ax.get_ylim()
-        ax.set_ylim(bottom, top + 0.12 * (top - bottom))  # headroom for the significance annotations
+        ax.set_ylim(bottom, top + 0.08 * (top - bottom))  # headroom for the significance annotations
 
         # annotate each group with the paired t-test significance
         for i, label in enumerate(group_order):
             if label in annotations:
                 group_max = df.loc[df["group"] == label, "value"].max()
-                ax.text(i, group_max * 1.02, annotations[label], ha="center", fontsize=10)
+                ax.text(i, group_max + 0.02 * (top - bottom), annotations[label], ha="center", fontsize=10)
 
-    sample_unit = "(view, frame) pairs pooled" if args.pool_views else "views averaged per frame"
-    fig.suptitle(
-        f"{args.exp1} vs {args.exp2}, averaged over {', '.join(args.views)} ({sample_unit})\n"
-        "paired t-test per group: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant",
-        fontsize=11,
-    )
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    if args.seq_label:
+        fig.text(0.01, 0.5, args.seq_label, fontsize=16, rotation="vertical", va="center", ha="left")
+    fig.tight_layout(rect=[0.03, 0, 1, 1] if args.seq_label else [0, 0, 1, 1])
     os.makedirs(args.out_dir, exist_ok=True)
     safe = lambda s: s.replace("/", "_")
     out_name = f"compare_experiments_{safe(args.exp1)}_vs_{safe(args.exp2)}.png"
