@@ -1,0 +1,246 @@
+% method.tex
+%
+% Method section for OffTrackGS. Intended to be \input{} (or \subfile{}) from
+% the paper's main.tex. Assumes the main document preamble already loads
+% amsmath, amssymb (and, if figures are added, graphicx).
+%
+%   \input{tex/method}
+%
+% Notation used throughout this section:
+%   scalars      x
+%   vectors      \mathbf{x}
+%   matrices     \mathbf{X}
+%   sets/scenes  \mathcal{X}
+
+\section{Method}
+\label{sec:method}
+
+This section describes the proposed method in three parts. Section
+\ref{sec:method:3dgs} presents the deformable 3D Gaussian Splatting
+representation on which our approach is built. Section
+\ref{sec:method:gcsr} introduces Geometry-Constrained Sideview
+Regularization (GCSR), a training-time regularizer that constrains scene
+geometry at viewpoints not present in the training trajectory. Section
+\ref{sec:method:rtvc} introduces Round-Trip View Consistency (RTVC), an
+evaluation protocol that quantifies reconstruction quality at such
+viewpoints without requiring ground-truth imagery to be captured there.
+
+\subsection{Deformable 3D Gaussian Splatting}
+\label{sec:method:3dgs}
+
+\paragraph{Canonical representation.}
+The reconstructed tissue is represented as a set of $N$ canonical 3D
+Gaussians $\mathcal{G} = \{(\boldsymbol{\mu}_i, \mathbf{s}_i, \mathbf{q}_i,
+\alpha_i, \mathbf{c}_i)\}_{i=1}^{N}$, where $\boldsymbol{\mu}_i \in
+\mathbb{R}^3$ denotes the mean, $\mathbf{s}_i \in \mathbb{R}^3_{>0}$ the
+per-axis scale, $\mathbf{q}_i$ a unit quaternion specifying orientation,
+$\alpha_i \in [0,1]$ an opacity, and $\mathbf{c}_i$ a set of
+spherical-harmonics coefficients encoding view-dependent color. The
+covariance of Gaussian $i$ is given by
+\begin{equation}
+\boldsymbol{\Sigma}_i = \mathbf{R}(\mathbf{q}_i)\,\mathrm{diag}(\mathbf{s}_i)^2\,\mathbf{R}(\mathbf{q}_i)^\top ,
+\end{equation}
+where $\mathbf{R}(\mathbf{q}_i)$ is the rotation matrix corresponding to
+$\mathbf{q}_i$.
+
+\paragraph{Deformation network.}
+Because surgical tissue deforms over the course of a video, $\mathcal{G}$ is
+not treated as static. A deformation network $F_\theta$ maps each canonical
+Gaussian and a query time $t$ to a set of residuals,
+\begin{equation}
+\big(\Delta\boldsymbol{\mu}_i(t),\, \Delta\mathbf{s}_i(t),\, \Delta\mathbf{q}_i(t),\, \Delta\alpha_i(t)\big) = F_\theta(\boldsymbol{\mu}_i, t),
+\end{equation}
+which define the time-$t$ Gaussian $\boldsymbol{\mu}_i(t) =
+\boldsymbol{\mu}_i + \Delta\boldsymbol{\mu}_i(t)$, and analogously for
+$\mathbf{s}_i(t)$, $\mathbf{q}_i(t)$, and $\alpha_i(t)$; color is held
+fixed under deformation. $F_\theta$ first encodes $(\boldsymbol{\mu}_i, t)$
+through a multi-resolution spatio-temporal feature grid (a HexPlane
+comprising six learned 2D planes spanning each pairing of $\{x, y, z, t\}$,
+bilinearly sampled and combined), and then decodes the resulting feature
+through a shared multilayer perceptron trunk followed by four
+output-specific heads, one per residual. This factorization allows the
+network to share a common spatio-temporal representation across all four
+deformed quantities while specializing each head's output.
+
+\paragraph{Rendering.}
+Given a camera pose $(\mathbf{R}, \mathbf{T})$ and time $t$, the deformed
+Gaussians $\{(\boldsymbol{\mu}_i(t), \mathbf{s}_i(t), \mathbf{q}_i(t),
+\alpha_i(t), \mathbf{c}_i)\}$ are projected to screen space and
+alpha-composited in front-to-back order by a tile-based differentiable
+rasterizer, producing a rendered color image $\hat{I}(\mathbf{R},
+\mathbf{T}, t)$ and a per-pixel depth map $\hat{D}(\mathbf{R}, \mathbf{T},
+t)$ at every pixel $\mathbf{p}$:
+\begin{equation}
+\hat{I}(\mathbf{p}) = \sum_{i \in \mathcal{N}(\mathbf{p})} \mathbf{c}_i\, \hat{\alpha}_i(\mathbf{p}) \prod_{j<i}\big(1-\hat{\alpha}_j(\mathbf{p})\big),
+\end{equation}
+where $\mathcal{N}(\mathbf{p})$ denotes the depth-ordered set of Gaussians
+overlapping $\mathbf{p}$, and $\hat{\alpha}_i(\mathbf{p})$ is $\alpha_i(t)$
+attenuated by the projected 2D footprint of $\boldsymbol{\Sigma}_i$ on the
+image plane; $\hat{D}$ is defined as the analogous depth-weighted
+composite.
+
+\paragraph{Training.}
+$\mathcal{G}$ and $\theta$ are optimized in two stages: a \emph{coarse}
+stage that fits the canonical, undeformed Gaussians, followed by a
+\emph{fine} stage that jointly optimizes $\mathcal{G}$ and $F_\theta$. The
+base training objective combines a photometric term (an $\ell_1$ term and a
+D-SSIM term against the ground-truth video frame), a depth term (a
+scale-invariant inverse-depth $\ell_1$ loss or a Pearson-correlation loss
+against the recorded depth, depending on the capture setup), a
+total-variation term on the rendered image and depth that discourages
+high-frequency noise, and, during the fine stage, a deformation regularizer
+consisting of temporal-smoothness and total-variation penalties on the
+HexPlane feature grid. Sections~\ref{sec:method:gcsr} and
+\ref{sec:method:rtvc} extend and evaluate this base model, respectively.
+
+\subsection{Geometry-Constrained Sideview Regularization (GCSR)}
+\label{sec:method:gcsr}
+
+Endoscopic video samples a narrow camera trajectory: the endoscope remains
+close to a single working distance and rarely departs far from an
+approximately frontal view of the tissue. Consequently, a Gaussian field
+can be photometrically accurate along the recorded trajectory while
+containing geometry that is implausible from any other viewpoint --
+needle- or plate-shaped Gaussians and disconnected floaters that project to
+a thin, inconsequential silhouette under the training views but yield a
+discontinuous depth surface under even a small viewpoint perturbation.
+Because free-viewpoint rendering is a design goal of this work, we
+regularize the model against this failure mode during training, using
+views synthesized by the model itself rather than any additional captured
+data.
+
+\paragraph{Sideview camera synthesis.}
+At training iterations that are multiples of a fixed interval $\tau$, we
+take the current training view's camera pose $(\mathbf{R}, \mathbf{T})$
+and its recorded depth map, and compute the scene's working distance $d$
+as the median of the valid, non-tool-masked depth values. An azimuth $a$
+is then sampled, either uniformly from $[0^\circ, 360^\circ)$ or from a
+fixed discrete set, and an elevation magnitude $e$ is fixed. A
+\emph{sideview} camera pose $(\mathbf{R}_{a,e}, \mathbf{T}_{a,e})$ is
+synthesized by rotating the original camera by angle $e$ about the axis
+$\mathbf{n}(a) = (-\sin a, \cos a, 0)^\top$, pivoting about the point at
+distance $d$ along the camera's principal ray. This defines an orbit of
+the camera about the tissue surface at its own working distance, and thus
+corresponds to a lateral perturbation of the endoscope rather than a
+translation along the viewing axis. Fixing $\mathbf{n}(a) = (-\sin
+0^\circ, \cos 0^\circ, 0)^\top$ and sweeping $e$ continuously through zero
+into negative values reproduces the two opposing sideview directions
+(nominally $a = 0^\circ$ and $a = 180^\circ$) as a single signed rotation
+about one axis.
+
+\paragraph{Depth-smoothness loss.}
+The current Gaussians are rendered at the synthesized sideview pose to
+obtain a depth map $\tilde{D}$; no ground truth is required at this pose.
+Its local roughness is penalized with a Huber (smooth-$\ell_1$)
+total-variation term:
+\begin{equation}
+\mathcal{L}_{\mathrm{depth}} = \sum_{(u,v)} h_\beta\!\big(\tilde{D}_{u+1,v} - \tilde{D}_{u,v}\big) + h_\beta\!\big(\tilde{D}_{u,v+1} - \tilde{D}_{u,v}\big),
+\label{eq:gcsr-depth}
+\end{equation}
+\begin{equation}
+h_\beta(x) = \begin{cases} \dfrac{x^2}{2\beta}, & |x| < \beta \\[4pt] |x| - \dfrac{\beta}{2}, & |x| \ge \beta. \end{cases}
+\end{equation}
+In contrast to a quadratic total-variation penalty, $h_\beta$ is quadratic,
+and therefore strongly smoothing, for the sub-pixel depth noise that
+dominates near $x = 0$, but grows only linearly beyond the threshold
+$\beta$. This suppresses disconnected floaters that are visible only from
+sideview poses without excessively penalizing genuine depth
+discontinuities such as tissue folds. An analogous total-variation term on
+the sideview color render, $\mathcal{L}_{\mathrm{smooth}}$, is available as
+an option but is not the primary contribution of this work.
+
+\paragraph{Anisotropy penalty.}
+As a complement to the depth term above, we directly penalize the
+needle- and plate-shaped Gaussians that are a common source of
+view-dependent floaters, independent of viewpoint. For each Gaussian, an
+anisotropy ratio $r_i = \max_k s_i^{(k)} / \big(\min_k s_i^{(k)} +
+\epsilon\big)$ is defined and penalized as
+\begin{equation}
+p(r_i) = \begin{cases} (r_i - 1)^{\gamma}, & \text{no threshold} \\[2pt] \mathrm{relu}(r_i - r_0)^{\gamma}, & \text{threshold } r_0, \end{cases}
+\end{equation}
+\begin{equation}
+\mathcal{L}_{\mathrm{aniso}} = \frac{1}{N}\sum_{i=1}^{N} p(r_i)\cdot \mathrm{sg}\!\big(\max_k s_i^{(k)}\big)^{\gamma_s},
+\label{eq:gcsr-aniso}
+\end{equation}
+where $\mathrm{sg}(\cdot)$ denotes a stop-gradient operator. The
+unthresholded form grows super-linearly with $r_i$ for $\gamma > 1$ and has
+nonzero gradient everywhere, contracting the anisotropy distribution as a
+whole; the thresholded form penalizes only ratios exceeding $r_0$, with
+zero gradient below it. In both cases, the per-Gaussian weighting factor is
+detached from the gradient and raised to a sub-linear power $\gamma_s < 1$,
+so that the penalty reshapes anisotropic Gaussians without being dominated
+by, or directly reducing the size of, the largest ones.
+
+\paragraph{Total objective.}
+The complete training loss augments the base objective of
+Section~\ref{sec:method:3dgs} with both terms above, each active only when
+its corresponding weight is nonzero:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\mathrm{base}} + \lambda_{\mathrm{depth}}\,\mathcal{L}_{\mathrm{depth}} + \lambda_{\mathrm{smooth}}\,\mathcal{L}_{\mathrm{smooth}} + \lambda_{\mathrm{aniso}}\,\mathcal{L}_{\mathrm{aniso}}.
+\end{equation}
+The sideview terms are evaluated at a single, randomly sampled sideview
+pose per training view every $\tau$ iterations rather than at every
+iteration, limiting their computational overhead. No sideview camera is
+synthesized at inference or rendering time, so GCSR introduces no
+additional runtime cost.
+
+\subsection{Round-Trip View Consistency (RTVC)}
+\label{sec:method:rtvc}
+
+Quantifying free-viewpoint reconstruction quality is inherently difficult
+for monocular endoscopic video: computing PSNR or SSIM against a
+photograph requires a captured image at the evaluation viewpoint, yet the
+recorded video visits only the narrow surgical trajectory, so no such
+image exists away from it. Round-Trip View Consistency (RTVC) addresses
+this limitation without requiring any additional capture, by reusing the
+ground truth already available at the original camera pose for the same
+time instant, and evaluating whether the model's synthesized view at a
+nearby off-axis pose is consistent with it through a round trip back
+through that synthesized viewpoint.
+
+\paragraph{Protocol.}
+For a test frame with original pose $(\mathbf{R}, \mathbf{T})$ and ground
+truth $I$, and for an evaluation elevation $e$ (and, optionally, one of the
+four cardinal azimuths, left, right, up, or down), RTVC proceeds as
+follows.
+\begin{enumerate}
+\item \textbf{Render.} The sideview pose $(\mathbf{R}_{a,e},
+\mathbf{T}_{a,e})$ is synthesized as in Section~\ref{sec:method:gcsr}, and
+the trained model is rendered at this pose to obtain a color image
+$\tilde{I}$ and depth map $\tilde{D}$.
+\item \textbf{Warp back.} $(\tilde{I}, \tilde{D})$ is forward-warped from
+the sideview pose to the original pose using a depth-based, $z$-buffered
+point splat: each valid sideview pixel is unprojected to a 3D point using
+$\tilde{D}$ and the known sideview camera intrinsics and pose, reprojected
+into the original camera, and rasterized with nearest-wins $z$-buffering to
+resolve duplicate or occluded projections. This produces a warped image
+$\hat{W}$ and a validity mask $M$ indicating which pixels of the original
+frame the sideview render's geometry was able to re-explain.
+\item \textbf{Score.} $\hat{W}$ is compared against the ground truth $I$
+using masked PSNR and masked SSIM, restricted to pixels valid under both
+$M$ and the surgical-tool mask, and, for SSIM, to windows whose valid
+coverage exceeds a minimum threshold.
+\end{enumerate}
+
+\paragraph{Ground-truth-free property.}
+No photograph at the sideview pose is required at any point in this
+procedure: the only ground truth used is $I$, which was already captured
+at the original pose. The resulting comparison is nonetheless a genuine
+photometric evaluation, because any error in the reconstructed geometry at
+the sideview pose, such as incorrect depth or missing or hallucinated
+structure, displaces content relative to the true pixels of $I$ once
+warped back, degrading RTVC's PSNR and SSIM even when the sideview render
+$\tilde{I}$ appears plausible in isolation and cannot itself be validated
+against a captured photograph.
+
+\paragraph{Statistical evaluation.}
+For a given elevation $e$, the up to four cardinal-azimuth measurements are
+averaged per frame prior to any statistical comparison, as they share the
+same underlying reconstruction at that time step and do not constitute
+independent samples; treating them as independent would pseudo-replicate
+the data and overstate statistical significance. This yields a single
+paired sample per frame per model, which is compared between two models
+using a paired $t$-test across frames. The special case $e = 0^\circ$,
+corresponding to no sideview offset and no warp, reduces to the
+conventional test-view PSNR and SSIM, and is reported alongside the RTVC
+elevations as a reference point.
