@@ -59,6 +59,7 @@ class EndoNeRF_Dataset(object):
         datadir,
         downsample=1.0,
         test_every=8,
+        init_pts=30_000,
         mode='binocular'
     ):
         self.img_wh = (
@@ -71,6 +72,7 @@ class EndoNeRF_Dataset(object):
         self.transform = T.ToTensor()
         self.white_bg = False
         self.mode = mode
+        self.init_pts = init_pts
 
         self.load_meta() # load meta data from the dataset
         print(f"meta data loaded, total image:{len(self.image_paths)}")
@@ -196,10 +198,12 @@ class EndoNeRF_Dataset(object):
                 colors_total.append(colors_sel)
             pts_total = np.concatenate(pts_total) # all frames
             colors_total = np.concatenate(colors_total)
-            sel_idxs = np.random.choice(pts_total.shape[0], 30_000, replace=True)
+            sel_idxs = np.random.choice(pts_total.shape[0], self.init_pts, replace=True)
             pts, colors = pts_total[sel_idxs], colors_total[sel_idxs]
             normals = np.zeros((pts.shape[0], 3))
         elif self.mode == 'monocular':
+            # init_pts does not apply here: this path has never subsampled, it initializes from
+            # every valid pixel of frame 0
             color, depth, mask = self.get_color_depth_mask(0, mode=self.mode)
             pts, colors, _ = self.get_pts_cam(depth, mask, color, disable_mask=False)
             pts = self.get_pts_wld(pts, self.image_poses[0])
@@ -299,7 +303,7 @@ class SCARED_Dataset(object):
         downsample=1.0,
         skip_every=2,
         test_every=8,
-        init_pts=200_000,
+        init_pts=30_000,
         mode='binocular'
     ):
         if "dataset_1" in datadir:
@@ -628,6 +632,7 @@ class Hamlyn_Dataset(object):
     def __init__(
         self,
         datadir,
+        init_pts=30_000,
         mode='binocular'
     ):
         # basic attrs
@@ -635,6 +640,7 @@ class Hamlyn_Dataset(object):
         self.root_dir = datadir
         self.transform = transforms.ToTensor()
         self.mode = mode
+        self.init_pts = init_pts
 
         # dummy poses
         poses = np.eye(4).astype(np.float32)
@@ -777,7 +783,10 @@ class Hamlyn_Dataset(object):
             color, depth, mask = self.imgs[initial_idx].numpy(), self.depths[initial_idx].numpy(), self.masks[initial_idx].numpy()
             pts, colors, _ = self.get_pts_cam(depth, mask, color)
             pts = self.get_pts_wld(pts, self.poses[initial_idx])
-            idxs = np.random.choice(np.arange(pts.shape[0]), 30000, replace=False)
+            # this initializes from a single frame, so init_pts can exceed the number of valid
+            # pixels; only then fall back to sampling with replacement, which numpy would reject
+            replace = pts.shape[0] < self.init_pts
+            idxs = np.random.choice(np.arange(pts.shape[0]), self.init_pts, replace=replace)
             pts = pts[idxs, :]
             colors = colors[idxs, :]
             normals = np.zeros((pts.shape[0], 3))

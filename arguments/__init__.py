@@ -80,7 +80,10 @@ class ModelParams(ParamGroup): # model loading params
         self.camera_extent = None #
         self.mode = "binocular" #
         self.no_fine = False #
-        # self.init_pts = 200_000
+        # number of points sampled to initialize the Gaussians. 30_000 is what the endonerf and
+        # hamlyn loaders used when this was hardcoded, so leaving it unset preserves their behavior;
+        # arguments/scared/*.py set it explicitly
+        self.init_pts = 30_000
 
     def extract(self, args):
         g = super().extract(args)

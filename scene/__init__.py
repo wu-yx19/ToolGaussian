@@ -38,16 +38,24 @@ class Scene:
 
         dataset = None
 
+        # render.py registers ModelParams with set_default_none=True, so get_combined_args drops
+        # init_pts when the checkpoint's saved cfg_args predates it. Leave it out of the kwargs in
+        # that case and let each loader's own default apply, rather than repeating the number here.
+        loader_args = {"mode": modelParam.mode}
+        init_pts = getattr(modelParam, "init_pts", None)
+        if init_pts is not None:
+            loader_args["init_pts"] = init_pts
+
         if os.path.exists(os.path.join(modelParam.source_path, "poses_bounds.npy")) and modelParam.extra_mark == 'endonerf':
-            dataset = EndoNeRF_Dataset(modelParam.source_path, mode=modelParam.mode)
+            dataset = EndoNeRF_Dataset(modelParam.source_path, **loader_args)
             print("Found poses_bounds.py and extra marks with EndoNeRf")
 
         elif os.path.exists(os.path.join(modelParam.source_path, "poses_bounds.npy")) and modelParam.extra_mark == 'hamlyn':
-            dataset = Hamlyn_Dataset(modelParam.source_path, mode=modelParam.mode)
+            dataset = Hamlyn_Dataset(modelParam.source_path, **loader_args)
             print("Found poses_bounds.py and extra marks with Hamlyn")
 
         elif os.path.exists(os.path.join(modelParam.source_path, "point_cloud.obj")) or os.path.exists(os.path.join(modelParam.source_path, "left_point_cloud.obj")):
-            dataset = SCARED_Dataset(modelParam.source_path, mode=modelParam.mode, init_pts=modelParam.init_pts)
+            dataset = SCARED_Dataset(modelParam.source_path, **loader_args)
             print("Found point_cloud.obj, assuming SCARED data!")
 
         else:
