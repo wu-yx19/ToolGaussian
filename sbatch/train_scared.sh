@@ -4,8 +4,8 @@
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --constraint=GPU_MEM:16GB
-#SBATCH --mem=32G                     # ~90 frames of 1280x1024 held in RAM during point init
-#SBATCH --time=1:00:00                # 2000 iters, but 4x the pixels of endonerf (which fits 6000 in 20min)
+#SBATCH --mem=16G                     # d2k1 (88 frames) measured at 10.8GB; scales with frame count
+#SBATCH --time=0:10:00                # d2k1 measured at 4.5min; all 5 scenes are 80-99 frames
 #SBATCH --output=logs/%j_train_scared.log
 #SBATCH --error=logs/%j_error.log
 

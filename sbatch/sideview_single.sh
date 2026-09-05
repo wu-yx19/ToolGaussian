@@ -30,7 +30,7 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
 
     GPU_MONITOR_PID=\$!
 
-    python sideview.py --expname $EXPNAME --elev 10 20 30 --frame_stride 20
+    python sideview.py --expname $EXPNAME --sideview_on_test
 
     echo "Stop GPU logging"
     kill \$GPU_MONITOR_PID

@@ -66,11 +66,18 @@ def main():
     iteration = resolve_iteration(sideview_root, args.iteration)
     sideview_dir = os.path.join(sideview_root, f"ours_{iteration}")
 
-    video_dir = os.path.join("output", args.expname, "video", f"ours_{iteration}")
-    gt_dir = os.path.join(video_dir, "gt")
-    tool_mask_dir = os.path.join(video_dir, "masks")
-    if not os.path.isdir(gt_dir) or not os.path.isdir(tool_mask_dir):
-        raise FileNotFoundError(f"missing {gt_dir} or {tool_mask_dir} -- run render.py --expname {args.expname} first (it renders train/test/video, including these)")
+    # both splits name gt/masks by the frame's true index, so either serves as a GT source --
+    # fall back to test/ for runs rendered with --skip_video (sideview_on_test frames are test frames)
+    gt_dir = tool_mask_dir = None
+    for split in ("video", "test"):
+        split_dir = os.path.join("output", args.expname, split, f"ours_{iteration}")
+        if os.path.isdir(os.path.join(split_dir, "gt")) and os.path.isdir(os.path.join(split_dir, "masks")):
+            gt_dir = os.path.join(split_dir, "gt")
+            tool_mask_dir = os.path.join(split_dir, "masks")
+            print(f"using {split} split for GT/masks")
+            break
+    if gt_dir is None:
+        raise FileNotFoundError(f"missing gt/masks under output/{args.expname}/{{video,test}}/ours_{iteration} -- run render.py --expname {args.expname} first (it renders these)")
 
     any_results = False
     summary = {}  # {view_name: {elev: {"psnr": [...], "ssim": [...]}}}, collapsed to means at the end

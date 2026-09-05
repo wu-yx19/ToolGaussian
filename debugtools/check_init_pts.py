@@ -75,6 +75,7 @@ from utils.general_utils import expname_to_source_path, resolve_expname_paths
 check("scared/d1k1", expname_to_source_path("scared/d1k1"), "./data/scared/dataset_1/keyframe_1")
 check("scared/d7k1", expname_to_source_path("scared/d7k1"), "./data/scared/dataset_7/keyframe_1")
 check("scared/d1k1_mono", expname_to_source_path("scared/d1k1_mono"), "./data/scared/dataset_1/keyframe_1")
+check("scared ablation suffix", expname_to_source_path("scared/d2k1-depthreg-aniso1e5-depth002"), "./data/scared/dataset_2/keyframe_1")
 check("endonerf/cutting", expname_to_source_path("endonerf/cutting"), "./data/endonerf/cutting")
 check("inferred path exists", os.path.isdir(expname_to_source_path("scared/d1k1")), True)
 

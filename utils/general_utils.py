@@ -84,8 +84,9 @@ def mkdir_p(folder_path): # create folder and parents
         else:
             raise
 
-# scared configs are named d<dataset>k<keyframe>, but its data is laid out dataset_<n>/keyframe_<n>
-_SCARED_SCENE = re.compile(r"^d(\d+)k(\d+)(?:_mono)?$")
+# scared configs are named d<dataset>k<keyframe>, but its data is laid out dataset_<n>/keyframe_<n>;
+# a _mono or -<ablation> suffix still refers to the same keyframe
+_SCARED_SCENE = re.compile(r"^d(\d+)k(\d+)(?:_mono)?(?:-.*)?$")
 
 def expname_to_source_path(expname, data_root="./data/"):
     # 'scared/d1k1' -> './data/scared/dataset_1/keyframe_1'; otherwise './data/<expname>'

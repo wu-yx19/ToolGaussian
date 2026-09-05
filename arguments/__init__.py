@@ -192,7 +192,7 @@ class OptimizationParams(ParamGroup):
         self.prune_scale_extent_ratio = -1 # was 0.1 -- scale.max() > ratio * extent -> pruned as floater; -1 disables this criterion (suspected cause of sideview holes)
         self.size_prune_grace_period = 500 # iterations after each opacity reset before size-based pruning re-arms
         self.max_prune_fraction = 0.5 # safety cap: prune() falls back to opacity-only if size criteria would remove more than this fraction
-        self.sideview_smooth_weight = 0.03 # TV-loss weight on a rendered synthetic side view (train-sideview.py)
+        self.sideview_smooth_weight = 0 # TV-loss weight on a rendered synthetic side view (train-sideview.py); 0 disables it
         self.sideview_depth_weight = 0 # huber-loss weight on the depth of that same side view; 0 disables it
         self.sideview_depth_huber_beta = 1.0 # huber transition point (depth units): quadratic below, linear above -- p99 of neighbor depth differences on cutting's GT depth is ~1.0, see debugtools/depth_check.py
         self.sideview_reg_interval = -1 # render+regularize a side view every N iterations; -1 disables it
@@ -215,7 +215,7 @@ class SideviewParams(ParamGroup): # offline side-view rendering (sideview.py)
         # 0, not None: get_combined_args only keeps a cmdline value when it's not None, otherwise falling
         # back to the model's saved cfg_args -- which never has this sideview-only key, so a None default
         # here would make the attribute vanish entirely (AttributeError) whenever --frame_stride is omitted
-        self.sideview_on_test = False # if True, render sideviews on the held-out test views instead of using frame_idxs/frame_stride on the video set
+        self.sideview_on_test = False # render sideviews on the held-out test views, unless frame_idxs/frame_stride selects video-set frames instead
         self.views = ["central", "left", "right", "up", "down"] # one or more views, relative to the frame's original pose
         self.concat = True # concat rendered views into one titled figure
         self.save_depth = False # save depth renders alongside color

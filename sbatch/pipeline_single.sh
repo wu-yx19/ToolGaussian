@@ -19,7 +19,7 @@ SAMPLE_INTERVAL=5                     # seconds between usage samples
 EXPNAME="${1:-endonerf/cutting}"
 DATA_PATH="${2:-data/endonerf/cutting}"     # config name may differ from the underlying dataset dir (e.g. cutting-nosv -> data/endonerf/cutting)
 ELEV="${3:-5 10 15 20 30 45}"
-BASELINE="${4:-endonerf/cutting-noaniso-nodepth}"  # compared against via debugtools/compare_experiments.py -- the controlled reference (pruning fixes kept, depth/aniso off), not the differently-trained cutting checkpoint; pass endonerf/pulling-noaniso-nodepth for pulling-family runs
+BASELINE="${4-endonerf/cutting-noaniso-nodepth}"  # no colon: passing "" skips the comparison, omitting the arg still defaults. compared against via debugtools/compare_experiments.py -- the controlled reference (pruning fixes kept, depth/aniso off), not the differently-trained cutting checkpoint; pass endonerf/pulling-noaniso-nodepth for pulling-family runs, or "" to skip the comparison
 CONFIG_PATH="./arguments/${EXPNAME}.py"     # train_eval.py's own default when --configs is unset
 
 echo "Working Directory: $PROJECT_DIR"
@@ -54,7 +54,7 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
     # --save_depth/--save_meta also render sideviews (render.py already calls sideview.py's
     # render_frame_views internally) and write the raw depth (.npy) + camera params (.json)
     # warp_to_source.py needs; render.py's own train/test/video pass also produces the gt/masks
-    # output score_against_gt.py reads (from the video split, unaffected by --sideview_on_test).
+    # output score_against_gt.py reads (it takes the video split, or falls back to test).
     # --sideview_on_test sources sideview frames from the held-out test views instead of every
     # Nth video frame, matching debugtools/compare_experiments.py's "original view" comparison group.
     echo "Rendering started: \$(date)"
@@ -71,8 +71,12 @@ apptainer exec --nv $IMAGE_PATH /bin/bash << EOF
 
     # must run after evaluate.py -- compare_experiments.py's "orig" group reads evaluate.py's
     # own per_view.json, which doesn't exist until evaluate.py has run
-    echo "Comparing against baseline $BASELINE: \$(date)"
-    python debugtools/compare_experiments.py --exp1 $BASELINE --exp2 $EXPNAME --elev $ELEV
+    if [ -n "$BASELINE" ]; then
+        echo "Comparing against baseline $BASELINE: \$(date)"
+        python debugtools/compare_experiments.py --exp1 $BASELINE --exp2 $EXPNAME --elev $ELEV
+    else
+        echo "No baseline given, skipping compare_experiments.py"
+    fi
 EOF
 
 echo "Pipeline Finished at: $(date)"

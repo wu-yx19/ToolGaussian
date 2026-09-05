@@ -177,19 +177,20 @@ def render_sets(
                 reconstruct=reconstruct,
             )
 
-        if sideviewParam.sideview_on_test:
-            # view.uid is the frame's true index in the full sequence (set at dataset-load
-            # time), which still matches the video set's own gt/masks output naming (the
-            # video split covers every frame in order), so score_against_gt.py's GT
-            # lookup by frame_idx keeps working even though frames now come from the test split
-            frame_views = [(view.uid, view) for view in scene.getTestViews()]
-        else:
+        # --frame_stride/--frame_idxs select video-set frames; otherwise --sideview_on_test uses the
+        # held-out test views. view.uid is the frame's true index in the full sequence, so either
+        # way it matches the gt/masks output naming score_against_gt.py looks GT up by
+        if sideviewParam.frame_stride or sideviewParam.frame_idxs:
             video_views = scene.getVideoViews()
             frame_idxs = (
                 list(range(0, len(video_views), int(sideviewParam.frame_stride)))
                 if sideviewParam.frame_stride else sideviewParam.frame_idxs
             )
             frame_views = [(frame_idx, video_views[frame_idx]) for frame_idx in frame_idxs]
+        elif sideviewParam.sideview_on_test:
+            frame_views = [(view.uid, view) for view in scene.getTestViews()]
+        else:
+            frame_views = []
 
         if frame_views:
             for elev in sideviewParam.elev:
