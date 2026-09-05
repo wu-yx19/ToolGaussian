@@ -24,7 +24,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from utils.general_utils import set_seed, set_seed_train, format_output, training_report
+from utils.general_utils import set_seed, set_seed_train, format_output, training_report, resolve_expname_paths
 from utils.graphics_utils import render_training_image, process_view
 from utils.eval_utils import psnr
 from utils.loss_utils import TV_loss, anisotropy_loss, huber_loss, l1_loss, lpips_loss, ssim
@@ -581,13 +581,7 @@ if __name__ == "__main__":
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)  # save after last iteration
 
-    if args.expname:
-        if not args.model_path:
-            args.model_path = os.path.join("./output/", args.expname)
-        if not args.configs:
-            args.configs = os.path.join("./arguments/", args.expname + ".py")
-        if not args.source_path:
-            args.source_path = os.path.join("./data/", args.expname)
+    args = resolve_expname_paths(args, infer_source_path=True)
 
     # configs > cmdline > default
     if args.configs:

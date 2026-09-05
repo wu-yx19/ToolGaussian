@@ -66,5 +66,31 @@ print("\n[4] omitting init_pts falls back to the loader default (what old checkp
 ds = EndoNeRF_Dataset("data/endonerf/cutting")
 check("endonerf loader default", ds.get_init_pts()[0].shape[0], 30_000)
 
+print("\n[5] expname -> path resolution")
+from argparse import Namespace
+import os.path
+
+from utils.general_utils import expname_to_source_path, resolve_expname_paths
+
+check("scared/d1k1", expname_to_source_path("scared/d1k1"), "./data/scared/dataset_1/keyframe_1")
+check("scared/d7k1", expname_to_source_path("scared/d7k1"), "./data/scared/dataset_7/keyframe_1")
+check("scared/d1k1_mono", expname_to_source_path("scared/d1k1_mono"), "./data/scared/dataset_1/keyframe_1")
+check("endonerf/cutting", expname_to_source_path("endonerf/cutting"), "./data/endonerf/cutting")
+check("inferred path exists", os.path.isdir(expname_to_source_path("scared/d1k1")), True)
+
+ns = Namespace(expname="scared/d1k1", model_path="", configs="", source_path="")
+resolve_expname_paths(ns, infer_source_path=True)
+check("model_path", ns.model_path, "./output/scared/d1k1")
+check("configs", ns.configs, "./arguments/scared/d1k1.py")
+check("source_path", ns.source_path, "./data/scared/dataset_1/keyframe_1")
+
+ns = Namespace(expname="scared/d1k1", model_path="", configs="", source_path="data/custom")
+resolve_expname_paths(ns, infer_source_path=True)
+check("explicit source_path wins", ns.source_path, "data/custom")
+
+ns = Namespace(expname="scared/d1k1", model_path="", configs="", source_path="")
+resolve_expname_paths(ns)
+check("source_path untouched by default", ns.source_path, "")
+
 print("\nFAILED: " + ", ".join(failures) if failures else "\nAll checks passed.")
 raise SystemExit(1 if failures else 0)

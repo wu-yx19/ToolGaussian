@@ -21,7 +21,7 @@ import torch
 from scene.gaussian_renderer import GaussianModel, render
 from scene import Scene
 
-from utils.general_utils import format_output, set_seed
+from utils.general_utils import format_output, resolve_expname_paths, set_seed
 from utils.graphics_utils import fov2focal, reconstruct_point_cloud
 from utils.image_utils import write_images, write_video
 
@@ -245,13 +245,8 @@ if __name__ == "__main__":
 
     # configs > cmdline > model cfg_args > default
     args = parser.parse_args(sys.argv[1:])
-    configs_auto_derived = False
-    if args.expname:
-        if not args.model_path:
-            args.model_path = os.path.join("./output/", args.expname)
-        if not args.configs:
-            args.configs = os.path.join("./arguments/", args.expname + ".py")
-            configs_auto_derived = True
+    configs_auto_derived = bool(args.expname and not args.configs)
+    args = resolve_expname_paths(args)
     args = get_combined_args(args) # read modelpath args, overwrite with cmdline
     if args.configs and (not configs_auto_derived or os.path.isfile(args.configs)):
         # overwrite with configs -- but an auto-derived --configs (from --expname) is a guess,

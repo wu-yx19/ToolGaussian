@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 
 from scene.gaussian_renderer import GaussianModel, render
 from scene import Scene
+from utils.general_utils import resolve_expname_paths
 from utils.image_utils import to8b
 from arguments import ModelHiddenParams, ModelParams, PipelineParams, get_combined_args, merge_hparams
 
@@ -45,11 +46,7 @@ def main():
     parser.add_argument("--out_dir", type=str, default="test")
 
     args = parser.parse_args(sys.argv[1:])
-    if args.expname:
-        if not args.model_path:
-            args.model_path = os.path.join("./output/", args.expname)
-        if not args.configs:
-            args.configs = os.path.join("./arguments/", args.expname + ".py")
+    args = resolve_expname_paths(args)
     args = get_combined_args(args)
     if args.configs:
         import mmcv

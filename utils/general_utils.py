@@ -12,6 +12,7 @@
 #
 
 import os
+import re
 import torch
 import sys
 from datetime import datetime
@@ -82,6 +83,35 @@ def mkdir_p(folder_path): # create folder and parents
             pass
         else:
             raise
+
+# scared configs are named d<dataset>k<keyframe>, but its data is laid out dataset_<n>/keyframe_<n>
+_SCARED_SCENE = re.compile(r"^d(\d+)k(\d+)(?:_mono)?$")
+
+def expname_to_source_path(expname, data_root="./data/"):
+    # 'scared/d1k1' -> './data/scared/dataset_1/keyframe_1'; otherwise './data/<expname>'
+    dataset, _, scene = expname.partition("/")
+    if dataset == "scared":
+        match = _SCARED_SCENE.match(scene)
+        if match:
+            return os.path.join(
+                data_root, "scared", f"dataset_{match.group(1)}", f"keyframe_{match.group(2)}"
+            )
+    return os.path.join(data_root, expname)
+
+def resolve_expname_paths(args, infer_source_path=False):
+    # only fills what the caller left unset. infer_source_path is opt-in: render.py and sideview.py
+    # take source_path from the checkpoint's saved cfg_args instead
+    if not args.expname:
+        return args
+
+    if not args.model_path:
+        args.model_path = os.path.join("./output/", args.expname)
+    if not args.configs:
+        args.configs = os.path.join("./arguments/", args.expname + ".py")
+    if infer_source_path and not getattr(args, "source_path", None):
+        args.source_path = expname_to_source_path(args.expname)
+
+    return args
 
 def training_report(
     tb_writer,

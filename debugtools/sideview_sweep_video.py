@@ -38,7 +38,7 @@ import torch
 from scene.gaussian_renderer import GaussianModel, render
 from scene import Scene
 
-from utils.general_utils import format_output, set_seed
+from utils.general_utils import format_output, resolve_expname_paths, set_seed
 from utils.image_utils import to8b
 from utils.graphics_utils import process_view
 
@@ -70,11 +70,7 @@ if __name__ == "__main__":
     parser.add_argument("--out_path", type=str, default=None, help="default: <model_path>/sideview_demo/ours_<iter>/sweep_frame<frame_idx>.mp4 or sweep_sequence.mp4 (individual PNGs go in a sibling renders_<name>/ folder)")
 
     args = parser.parse_args(sys.argv[1:])
-    if args.expname:
-        if not args.model_path:
-            args.model_path = os.path.join("./output/", args.expname)
-        if not args.configs:
-            args.configs = os.path.join("./arguments/", args.expname + ".py")
+    args = resolve_expname_paths(args)
 
     # get_combined_args rebuilds the namespace from the trained checkpoint's saved cfg_args,
     # only overlaying cmdline values where they're not None -- since cfg_args never had these
