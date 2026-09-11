@@ -2,7 +2,7 @@
 #   elev      5     10     15     20     30     45
 #   baseline  26.71  24.64  23.02  21.81  19.58  16.02
 #   this      28.54  27.11  25.29  23.30  18.49  12.98
-# Clean wins (no seed overlap) at elev5-20; clean loss at elev45. See the sibling configs for
+# Clean wins (no seed overlap) at elev5-20; clean loss at elev45. See arguments/scared-backup/ for
 # variants that did NOT help: -thresh5 (anisotropy hinge 5, loses the elev15/20 wins),
 # -depth001/-depth0005/-depth004/-depth008 (depth weight sweep, unresolvable at 3 seeds),
 # -oreset1200 (fixes the wide-angle collapse but costs the elev10-20 wins),
