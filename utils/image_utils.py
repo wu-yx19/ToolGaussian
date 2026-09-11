@@ -81,6 +81,21 @@ def masked_psnr(img1, img2, valid):
     mse = np.mean(diff[valid_full] ** 2)
     return float("inf") if mse == 0 else float(10 * np.log10((255.0 ** 2) / mse))
 
+def masked_squared_error(img1, img2, valid):
+    # summed squared error over `valid`, plus how many values went into it. Lets a caller pool
+    # across frames instead of averaging per-frame PSNRs, so a frame with few valid pixels
+    # weighs proportionally less rather than counting the same as a fully-covered one
+    diff = img1.astype(np.float64) - img2.astype(np.float64)
+    valid_full = np.broadcast_to(valid[..., None], diff.shape) if diff.ndim == 3 else valid
+    squares = diff[valid_full] ** 2
+    return float(squares.sum()), int(squares.size)
+
+def psnr_from_squared_error(squared_error, count):
+    if count == 0:
+        return None
+    mse = squared_error / count
+    return float("inf") if mse == 0 else float(10 * np.log10((255.0 ** 2) / mse))
+
 def masked_gradient_energy(gray, mask, ksize=3):
     # Sobel gradient magnitude; only trustworthy where the full ksize x ksize neighborhood is
     # valid, so `valid` erodes `mask` by a matching kernel instead of using normalized

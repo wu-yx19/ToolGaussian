@@ -192,6 +192,7 @@ class OptimizationParams(ParamGroup):
         self.prune_scale_extent_ratio = -1 # was 0.1 -- scale.max() > ratio * extent -> pruned as floater; -1 disables this criterion (suspected cause of sideview holes)
         self.size_prune_grace_period = 500 # iterations after each opacity reset before size-based pruning re-arms
         self.max_prune_fraction = 0.5 # safety cap: prune() falls back to opacity-only if size criteria would remove more than this fraction
+        self.seed = 0 # RNG seed for point init + training; vary it to measure run-to-run spread
         self.sideview_smooth_weight = 0 # TV-loss weight on a rendered synthetic side view (train-sideview.py); 0 disables it
         self.sideview_depth_weight = 0 # huber-loss weight on the depth of that same side view; 0 disables it
         self.sideview_depth_huber_beta = 1.0 # huber transition point (depth units): quadratic below, linear above -- p99 of neighbor depth differences on cutting's GT depth is ~1.0, see debugtools/depth_check.py

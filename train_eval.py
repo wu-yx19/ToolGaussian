@@ -556,8 +556,9 @@ def training(
 if __name__ == "__main__":
 
     torch.cuda.empty_cache()
-    set_seed(0)
-    set_seed_train(6666)
+    # moved below, after the config merge, so --seed can pick the value
+    # set_seed(0)
+    # set_seed_train(6666)
 
     # Set up command line argument parser
     parser = ArgumentParser(description="Training script parameters (with in-training test-set evaluation)")
@@ -588,6 +589,10 @@ if __name__ == "__main__":
         import mmcv
         config = mmcv.Config.fromfile(args.configs) # read and return similar to dict
         args = merge_hparams(args, config)  # overwrite args with config
+
+    # seed=0 reproduces the previously hardcoded set_seed(0)/set_seed_train(6666)
+    set_seed(args.seed)
+    set_seed_train(6666 + args.seed)
 
     # Start GUI server, configure and run training
     network_gui.init(args.ip, args.port) # ???

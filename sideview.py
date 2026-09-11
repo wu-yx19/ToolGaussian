@@ -222,7 +222,6 @@ if __name__ == "__main__":
     pipelineParam = PipelineParams()
     modelHiddenParam = ModelHiddenParams()
     sideviewParam = SideviewParams()
-    sideviewParam.frame_idxs = [0] # sideview.py renders frame 0 by default, unlike render.py
 
     modelParam.register(parser, set_default_none=True)
     # set_default_none=True here too: without it, get_combined_args only lets a saved cfg_args
@@ -293,7 +292,10 @@ if __name__ == "__main__":
         elif sideviewParam.sideview_on_test:
             frame_views = [(view.uid, view) for view in scene.getTestViews()]
         else:
-            frame_views = []
+            # sideview.py falls back to frame 0, unlike render.py which renders no sideviews.
+            # This lives here rather than as a frame_idxs default, which would be truthy and so
+            # always beat --sideview_on_test in the check above
+            frame_views = [(0, scene.getVideoViews()[0])]
 
         print("Rendering ", args.model_path, f"(frames {[f for f, _ in frame_views]}, views: {sideviewParam.views}, elevs: {sideviewParam.elev})")
 

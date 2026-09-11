@@ -5,6 +5,7 @@ ModelParams = dict(
 )
 
 OptimizationParams = dict(
+    seed = 1,
     coarse_iterations = 1000,
     iterations = 2000,
     position_lr_init = 0.00016,
@@ -21,7 +22,6 @@ OptimizationParams = dict(
     pruning_interval = 2000,
     percent_dense = 0.01,
     opacity_reset_interval = 3000,
-    
 )
 
 ModelHiddenParams = dict(

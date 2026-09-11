@@ -272,18 +272,19 @@ class EndoNeRF_Dataset(object):
         nerf_normalization = getNerfppNorm(train_cam_infos)
 
         # initialize sparse point clouds
-        ply_path = os.path.join(self.root_dir, "points3d.ply")
         xyz, rgb, normals = self.get_init_pts()
 
         normals = np.random.random((xyz.shape[0], 3))
-        pcd = BasicPointCloud(points=xyz, colors=rgb, normals=normals)
-        storePly(ply_path, xyz,rgb*255)
+        # float32 as the old fetchPly round-trip gave: the dtype reaches set_aabb -> grid_sample
+        pcd = BasicPointCloud(points=xyz.astype(np.float32), colors=rgb, normals=normals)
 
+        # written for inspection only -- pcd above is what we use. Reading it back raced with
+        # concurrent runs on the same scene, and was a no-op (8-bit colours survive, normals unused)
+        ply_path = os.path.join(self.root_dir, "points3d.ply")
         try:
-            pcd = fetchPly(ply_path)
+            storePly(ply_path, xyz, rgb*255)
         except Exception as e:
-            print(f"Failed to load {ply_path}: {e}")
-            pcd = None
+            print(f"Could not write {ply_path}: {e}")
 
 
         scene_info = SceneInfo(point_cloud=pcd,
@@ -579,16 +580,17 @@ class SCARED_Dataset(object):
         nerf_normalization = getNerfppNorm(train_cam_infos)
 
         # initialize sparse point clouds
-        ply_path = os.path.join(self.root_dir, "points3d.ply")
         xyz, rgb, normals = self.get_init_pts()
-        pcd = BasicPointCloud(points=xyz, colors=rgb, normals=normals)
-        storePly(ply_path, xyz, rgb*255)
+        # float32 as the old fetchPly round-trip gave: the dtype reaches set_aabb -> grid_sample
+        pcd = BasicPointCloud(points=xyz.astype(np.float32), colors=rgb, normals=normals)
 
+        # written for inspection only -- pcd above is what we use. Reading it back raced with
+        # concurrent runs on the same scene, and was a no-op (8-bit colours survive, normals unused)
+        ply_path = os.path.join(self.root_dir, "points3d.ply")
         try:
-            pcd = fetchPly(ply_path)
+            storePly(ply_path, xyz, rgb*255)
         except Exception as e:
-            print(f"Failed to load {ply_path}: {e}")
-            pcd = None
+            print(f"Could not write {ply_path}: {e}")
 
         scene_info = SceneInfo(point_cloud=pcd,
                                train_views=train_cam_infos,
@@ -834,18 +836,19 @@ class Hamlyn_Dataset(object):
         nerf_normalization = getNerfppNorm(train_cam_infos)
 
         # initialize sparse point clouds
-        ply_path = os.path.join(self.root_dir, "points3d.ply")
         xyz, rgb, normals = self.get_init_pts()
 
         normals = np.random.random((xyz.shape[0], 3))
-        pcd = BasicPointCloud(points=xyz, colors=rgb, normals=normals)
-        storePly(ply_path, xyz,rgb*255)
+        # float32 as the old fetchPly round-trip gave: the dtype reaches set_aabb -> grid_sample
+        pcd = BasicPointCloud(points=xyz.astype(np.float32), colors=rgb, normals=normals)
 
+        # written for inspection only -- pcd above is what we use. Reading it back raced with
+        # concurrent runs on the same scene, and was a no-op (8-bit colours survive, normals unused)
+        ply_path = os.path.join(self.root_dir, "points3d.ply")
         try:
-            pcd = fetchPly(ply_path)
+            storePly(ply_path, xyz, rgb*255)
         except Exception as e:
-            print(f"Failed to load {ply_path}: {e}")
-            pcd = None
+            print(f"Could not write {ply_path}: {e}")
 
 
         scene_info = SceneInfo(point_cloud=pcd,

@@ -1,3 +1,6 @@
+# Isolation arm of the depth x anisotropy grid, one seed only -- attribution is weak, since
+# later 3-seed runs showed single runs here vary by several dB at wide elevs.
+
 ModelParams = dict(
     extra_mark = 'scared',
     no_fine=False,
@@ -11,17 +14,29 @@ OptimizationParams = dict(
     position_lr_final = 0.0000016,
     position_lr_delay_mult = 0.01,
     position_lr_max_steps = 2000,
-    
+
     deformation_lr_init = 0.00016,
     deformation_lr_final = 0.0000016,
     deformation_lr_delay_mult = 0.01,
     grid_lr_init = 0.0016,
     grid_lr_final = 0.000016,
-    
+
     pruning_interval = 2000,
     percent_dense = 0.01,
     opacity_reset_interval = 3000,
-    
+
+    # anisotropy reg only (depth off), splitting endonerf/cutting-depthreg-aniso1e5-depth002. The whole
+    # block is copied rather than just the two weights that differ from the endonerf baseline,
+    # since sideview_reg_interval defaults to -1 (off) and the shape params default differently
+    sideview_smooth_weight = 0,          # color TV loss off, as on cutting
+    sideview_depth_weight = 0,           # anisotropy-only arm of the depth x anisotropy grid
+    sideview_depth_huber_beta = 1.0,
+    sideview_reg_interval = 5,
+    sideview_elev = 20,
+    sideview_azims = -1,                 # sample azimuth uniformly from [0, 360)
+    anisotropy_weight = 1e-5,
+    anisotropy_ratio_power = 2.0,
+    anisotropy_ratio_threshold = 10.0,
 )
 
 ModelHiddenParams = dict(

@@ -31,7 +31,8 @@ import argparse
 import numpy as np
 import cv2
 
-from utils.image_utils import sideview_view_elevs, masked_ssim_map, masked_psnr
+from utils.image_utils import (sideview_view_elevs, masked_ssim_map, masked_psnr,
+                               masked_squared_error, psnr_from_squared_error)
 from warp_to_source import resolve_iteration
 
 
@@ -60,6 +61,7 @@ def main():
     parser.add_argument("--elev", required=True, type=float, nargs="+", help="one or more elevations to process")
     parser.add_argument("--ssim_window", type=int, default=11, help="SSIM window size in pixels")
     parser.add_argument("--coverage_thresh", type=float, default=0.5, help="min fraction of an SSIM window that must be valid to trust it")
+    parser.add_argument("--pool_pixels", action="store_true", help="also report psnr_pooled/ssim_pooled per (view, elev): one score over every valid pixel of every frame, instead of the mean of per-frame scores. Steadier at wide elevs, where a frame may only have a few percent of its pixels valid and still count as a full sample")
     args = parser.parse_args()
 
     sideview_root = os.path.join("output", args.expname, "sideview")
@@ -135,10 +137,19 @@ def main():
                 print(f"{key}: psnr={psnr_score:.2f} ssim={ssim_score:.4f} valid={valid.mean():.1%}" if ssim_score is not None
                       else f"{key}: psnr={psnr_score:.2f} ssim=n/a (no valid SSIM windows) valid={valid.mean():.1%}")
 
-                bucket = summary.setdefault(view_name, {}).setdefault(elev, {"psnr": [], "ssim": []})
+                bucket = summary.setdefault(view_name, {}).setdefault(
+                    elev, {"psnr": [], "ssim": [], "sq_err": 0.0, "px": 0, "ssim_sum": 0.0, "ssim_px": 0})
                 bucket["psnr"].append(psnr_score)
                 if ssim_score is not None:
                     bucket["ssim"].append(ssim_score)
+
+                if args.pool_pixels:
+                    sq_err, px = masked_squared_error(warpback_img, gt_img, valid)
+                    bucket["sq_err"] += sq_err
+                    bucket["px"] += px
+                    if valid_ssim.any():
+                        bucket["ssim_sum"] += float(ssim_map[valid_ssim].sum())
+                        bucket["ssim_px"] += int(valid_ssim.sum())
 
         if not results:
             continue
@@ -161,6 +172,11 @@ def main():
                 "psnr_mean": float(np.mean(bucket["psnr"])),
                 "ssim_mean": float(np.mean(bucket["ssim"])) if bucket["ssim"] else None,
                 "n_frames": len(bucket["psnr"]),
+                **({
+                    "psnr_pooled": psnr_from_squared_error(bucket["sq_err"], bucket["px"]),
+                    "ssim_pooled": (bucket["ssim_sum"] / bucket["ssim_px"]) if bucket["ssim_px"] else None,
+                    "n_pixels": bucket["px"],
+                } if args.pool_pixels else {}),
             }
             for elev, bucket in sorted(elev_buckets.items())
         }
