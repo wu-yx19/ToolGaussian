@@ -1,17 +1,22 @@
-# SUPERSEDED by d2k1-depth002-noaniso-prunefix -- dropping the anisotropy term matches this
-# everywhere and beats it cleanly at elev45 (14.54-15.28 vs 10.67-14.31). Kept as the
-# with-anisotropy comparison point. Warpback PSNR vs d2k1 baseline, mean of 3 seeds:
-#   elev      5     10     15     20     30     45
-#   baseline  26.71  24.64  23.02  21.81  19.58  16.02
-#   this      28.54  27.11  25.29  23.30  18.49  12.98
-# Clean wins (no seed overlap) at elev5-20; clean loss at elev45. See arguments/scared-backup/ for
-# variants that did NOT help: -thresh5 (anisotropy hinge 5, loses the elev15/20 wins),
-# -depth001/-depth0005/-depth004/-depth008 (depth weight sweep, unresolvable at 3 seeds),
-# -oreset1200 (fixes the wide-angle collapse but costs the elev10-20 wins),
-# -oreset1500-it3000 (unstable), -dens2500 (worse than baseline everywhere).
-# prune_scale_extent_ratio=10.0 fires on nothing (needs scale >161, largest is ~134), so the
-# pruning gain is opacity-only -- and it is "prune at all", not "prune more often": at the
-# baseline's interval of 2000 the save runs before the prune block, so it never prunes.
+# BEST scared config. Pruning fix + depth reg, no anisotropy. Warpback PSNR, offset views,
+# mean of 3 seeds:
+#   elev              5      10      15      20      30      45
+#   baseline      26.71   24.64   23.02   21.81   19.58   16.02
+#   prunefix only 27.12   25.35   23.85   22.13   18.58   13.01
+#   + aniso+depth 28.54   27.11   25.29   23.30   18.49   12.98
+#   this          28.62   27.29   25.64   23.66   19.76   14.90
+# Clean wins over baseline (no seed overlap) at elev5-20, and unlike the +aniso version it does
+# not lose at elev45 -- ranges overlap there instead. It beats +aniso cleanly at elev45
+# (14.54-15.28 vs 10.67-14.31), so the anisotropy term cost ~2dB at wide angles and bought
+# nothing elsewhere. Also the most repeatable: elev5 spans 0.10dB across seeds, elev10 0.37dB.
+# Both terms are needed though -- prunefix alone overlaps baseline everywhere (one seed collapsed
+# to 25.65 at elev5), so the depth term is doing real work.
+#
+# prune_scale_extent_ratio=10.0 fires on nothing here (needs scale >10*extent(16.13)=161, largest
+# gaussian is ~134). The pruning gain is opacity-only, and it is "prune at all" rather than "prune
+# more often": at the baseline's interval of 2000, iteration % 2000 == 0 only at 2000, and the
+# save (train_eval.py:374) runs before the prune block (:486), so the baseline never prunes its
+# saved model. Only ~365 of ~56k gaussians are removed, so the size of the effect is unexplained.
 
 ModelParams = dict(
     extra_mark = 'scared',
@@ -47,7 +52,7 @@ OptimizationParams = dict(
     sideview_reg_interval = 5,
     sideview_elev = 20,
     sideview_azims = -1,                 # sample azimuth uniformly from [0, 360)
-    anisotropy_weight = 1e-5,
+    anisotropy_weight = 0,               # prunefix + depth reg only
     anisotropy_ratio_power = 2.0,
     anisotropy_ratio_threshold = 10.0,
 )

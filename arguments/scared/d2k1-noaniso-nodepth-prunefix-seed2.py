@@ -1,17 +1,4 @@
-# SUPERSEDED by d2k1-depth002-noaniso-prunefix -- dropping the anisotropy term matches this
-# everywhere and beats it cleanly at elev45 (14.54-15.28 vs 10.67-14.31). Kept as the
-# with-anisotropy comparison point. Warpback PSNR vs d2k1 baseline, mean of 3 seeds:
-#   elev      5     10     15     20     30     45
-#   baseline  26.71  24.64  23.02  21.81  19.58  16.02
-#   this      28.54  27.11  25.29  23.30  18.49  12.98
-# Clean wins (no seed overlap) at elev5-20; clean loss at elev45. See arguments/scared-backup/ for
-# variants that did NOT help: -thresh5 (anisotropy hinge 5, loses the elev15/20 wins),
-# -depth001/-depth0005/-depth004/-depth008 (depth weight sweep, unresolvable at 3 seeds),
-# -oreset1200 (fixes the wide-angle collapse but costs the elev10-20 wins),
-# -oreset1500-it3000 (unstable), -dens2500 (worse than baseline everywhere).
-# prune_scale_extent_ratio=10.0 fires on nothing (needs scale >161, largest is ~134), so the
-# pruning gain is opacity-only -- and it is "prune at all", not "prune more often": at the
-# baseline's interval of 2000 the save runs before the prune block, so it never prunes.
+# Seed variant of d2k1-noaniso-nodepth-prunefix; see that file for the 3-seed result.
 
 ModelParams = dict(
     extra_mark = 'scared',
@@ -20,6 +7,7 @@ ModelParams = dict(
 )
 
 OptimizationParams = dict(
+    seed = 2,
     coarse_iterations = 1000,
     iterations = 2000,
     position_lr_init = 0.00016,
@@ -42,12 +30,12 @@ OptimizationParams = dict(
     # block is copied rather than just the two weights that differ from the endonerf baseline,
     # since sideview_reg_interval defaults to -1 (off) and the shape params default differently
     sideview_smooth_weight = 0,          # color TV loss off, as on cutting
-    sideview_depth_weight = 0.02,
+    sideview_depth_weight = 0,           # with smooth_weight also 0 the sideview block never runs
     sideview_depth_huber_beta = 1.0,
     sideview_reg_interval = 5,
     sideview_elev = 20,
     sideview_azims = -1,                 # sample azimuth uniformly from [0, 360)
-    anisotropy_weight = 1e-5,
+    anisotropy_weight = 0,               # prunefix alone: no depth reg, no anisotropy reg
     anisotropy_ratio_power = 2.0,
     anisotropy_ratio_threshold = 10.0,
 )

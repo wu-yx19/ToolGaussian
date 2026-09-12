@@ -1,6 +1,8 @@
-# SUPERSEDED by d2k1-depth002-noaniso-prunefix -- dropping the anisotropy term matches this
-# everywhere and beats it cleanly at elev45 (14.54-15.28 vs 10.67-14.31). Kept as the
-# with-anisotropy comparison point. Warpback PSNR vs d2k1 baseline, mean of 3 seeds:
+# RESULT: shifts the useful window rather than widening it. 3-seed mean gains 2.15dB at
+# elev45 (15.13 vs 12.98) but gives back 1.7dB at elev20, landing at baseline level. Only
+# one clean win over baseline (elev5) vs four for sideview_elev=20. Keep 20.
+
+# Best scared config found so far. Warpback PSNR vs d2k1 baseline, mean of 3 seeds, offset views:
 #   elev      5     10     15     20     30     45
 #   baseline  26.71  24.64  23.02  21.81  19.58  16.02
 #   this      28.54  27.11  25.29  23.30  18.49  12.98
@@ -9,9 +11,6 @@
 # -depth001/-depth0005/-depth004/-depth008 (depth weight sweep, unresolvable at 3 seeds),
 # -oreset1200 (fixes the wide-angle collapse but costs the elev10-20 wins),
 # -oreset1500-it3000 (unstable), -dens2500 (worse than baseline everywhere).
-# prune_scale_extent_ratio=10.0 fires on nothing (needs scale >161, largest is ~134), so the
-# pruning gain is opacity-only -- and it is "prune at all", not "prune more often": at the
-# baseline's interval of 2000 the save runs before the prune block, so it never prunes.
 
 ModelParams = dict(
     extra_mark = 'scared',
@@ -20,6 +19,7 @@ ModelParams = dict(
 )
 
 OptimizationParams = dict(
+    seed = 1,
     coarse_iterations = 1000,
     iterations = 2000,
     position_lr_init = 0.00016,
@@ -45,7 +45,7 @@ OptimizationParams = dict(
     sideview_depth_weight = 0.02,
     sideview_depth_huber_beta = 1.0,
     sideview_reg_interval = 5,
-    sideview_elev = 20,
+    sideview_elev = 30,                  # was 20 -- the clean wins stop at elev20, which is exactly where the regularizer is applied
     sideview_azims = -1,                 # sample azimuth uniformly from [0, 360)
     anisotropy_weight = 1e-5,
     anisotropy_ratio_power = 2.0,
